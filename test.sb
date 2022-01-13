@@ -1,0 +1,4 @@
+#!/usr/bin/env sbash
+
+echo "0: $0"
+echo "Args:" "$@"
