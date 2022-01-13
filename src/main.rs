@@ -1,11 +1,10 @@
 use itertools::Itertools;
 use nom::branch::alt;
-use nom::bytes::complete::{tag, take_till};
+use nom::bytes::complete::tag;
 use nom::character::complete::{
-    alpha1, alphanumeric1, char, line_ending, multispace0, multispace1, not_line_ending, one_of,
-    space0, space1,
+    alpha1, alphanumeric1, line_ending, multispace0, not_line_ending, space0,
 };
-use nom::combinator::{eof, recognize};
+use nom::combinator::recognize;
 use nom::error::ParseError;
 use nom::multi::many0;
 use nom::sequence::{delimited, pair, preceded, tuple};
