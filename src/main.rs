@@ -5,7 +5,7 @@ use std::{
     io::Write,
     iter,
     os::unix::prelude::CommandExt,
-    process::{Command, Stdio},
+    process::{self, Command, Stdio},
 };
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -21,9 +21,10 @@ fn main() -> Result<(), Box<dyn Error>> {
         .spawn()?;
 
     child.stdin.as_mut().unwrap().write_all(&input)?;
-    // TODO: Is this OK? Do zombies get cleaned up when we exit?
-    let exit_code = child.wait()?;
 
-    println!("Exit code: {}", exit_code);
-    Ok(())
+    // TODO: Is this OK? Do zombies get cleaned up when we exit?
+    match child.wait()?.code() {
+        Some(code) => process::exit(code),
+        None => panic!("Process terminated by signal"),
+    }
 }
