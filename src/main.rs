@@ -105,7 +105,7 @@ fn parse_item(input: &str) -> IResult<&str, Item> {
     Ok((input, Item { ident, body }))
 }
 
-fn parse<'a>(input: &'a str) -> IResult<&'a str, Script> {
+fn parse(input: &str) -> IResult<&str, Script> {
     let (input, items) = many0(ws(parse_item))(input)?;
     Ok((input, Script { items }))
 }
