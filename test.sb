@@ -1,4 +1,4 @@
-#!/usr/bin/env sbash
+fn test1
 
-echo "0: $0"
-echo "Args:" "$@"
+
+fn test2
