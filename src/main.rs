@@ -29,7 +29,7 @@ impl<'a> Script<'a> {
     fn script(&self, function: &Option<impl AsRef<str>>) -> String {
         let function = function.as_ref().map_or("main", AsRef::as_ref);
         format!(
-            "{}\n\n{}",
+            "{}\n\n{} \"$@\"",
             self.items.iter().map(Item::script).join("\n"),
             function
         )

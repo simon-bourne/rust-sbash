@@ -4,6 +4,8 @@ fn test1 {
 
 fn test2 {
     x=1
+    echo Arg0: "$0"
+    echo Args: "$@"
 
     echo Hello from test2
 
