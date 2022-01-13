@@ -1,4 +1,17 @@
-fn test1
+fn test1 {
+    echo Hello from test1
+}
 
+fn test2 {
+    x=1
 
-fn test2
+    echo Hello from test2
+
+}
+
+fn test3 {
+}
+
+fn main {
+    echo Hello from main
+}

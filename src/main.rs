@@ -1,12 +1,14 @@
+use itertools::Itertools;
 use nom::branch::alt;
 use nom::bytes::complete::{tag, take_till};
 use nom::character::complete::{
-    alpha1, alphanumeric1, char, line_ending, multispace0, multispace1, not_line_ending,
+    alpha1, alphanumeric1, char, line_ending, multispace0, multispace1, not_line_ending, one_of,
+    space0, space1,
 };
-use nom::combinator::recognize;
+use nom::combinator::{eof, recognize};
 use nom::error::ParseError;
 use nom::multi::many0;
-use nom::sequence::{delimited, pair, tuple};
+use nom::sequence::{delimited, pair, preceded, tuple};
 use nom::IResult;
 use std::{
     env,
@@ -23,6 +25,17 @@ struct Script<'a> {
     items: Vec<Item<'a>>,
 }
 
+impl<'a> Script<'a> {
+    fn script(&self, function: &Option<impl AsRef<str>>) -> String {
+        let function = function.as_ref().map_or("main", AsRef::as_ref);
+        format!(
+            "{}\n\n{}",
+            self.items.iter().map(Item::script).join("\n"),
+            function
+        )
+    }
+}
+
 fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(
     inner: F,
 ) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
@@ -33,7 +46,7 @@ where
 }
 
 fn parse_comment(input: &str) -> IResult<&str, &str> {
-    ws(delimited(char('#'), not_line_ending, line_ending))(input)
+    preceded(pair(tag("#"), space0), not_line_ending)(input)
 }
 
 fn parse_comments(input: &str) -> IResult<&str, Vec<&str>> {
@@ -43,23 +56,57 @@ fn parse_comments(input: &str) -> IResult<&str, Vec<&str>> {
 #[derive(Debug)]
 struct Item<'a> {
     ident: &'a str,
+    body: &'a str,
 }
 
-pub fn identifier(input: &str) -> IResult<&str, &str> {
+// TODO: Make sure line numbers match up with bash line numbers
+impl<'a> Item<'a> {
+    fn script(&self) -> String {
+        if self.body.is_empty() {
+            format!("{} () {{ :; }}", self.ident)
+        } else {
+            format!(
+                "{} () {{ ( set -euo pipefail \n{}) }}\n\n",
+                self.ident, self.body
+            )
+        }
+    }
+}
+
+fn identifier(input: &str) -> IResult<&str, &str> {
     recognize(pair(
-        alt((alpha1, tag("_"), tag("."))),
-        many0(alt((alphanumeric1, tag("_")))),
+        alt((alpha1, tag("_"))),
+        many0(alt((alphanumeric1, tag("_"), tag(".")))),
     ))(input)
 }
 
-fn parse_item(input: &str) -> IResult<&str, Item> {
-    let (input, (_, _, ident)) = ws(tuple((tag("fn"), multispace1, identifier)))(input)?;
+fn parse_body(input: &str) -> IResult<&str, &str> {
+    let (_, prefix) = space0(input)?;
 
-    Ok((input, Item { ident }))
+    if prefix.is_empty() {
+        return Ok((input, ""));
+    }
+
+    recognize(many0(pair(
+        alt((recognize(tuple((tag(prefix), not_line_ending))), space0)),
+        line_ending,
+    )))(input)
+}
+
+fn parse_item(input: &str) -> IResult<&str, Item> {
+    let (input, (ident, body)) = preceded(
+        tag("fn"),
+        tuple((
+            ws(identifier),
+            delimited(tuple((tag("{"), space0, line_ending)), parse_body, tag("}")),
+        )),
+    )(input)?;
+
+    Ok((input, Item { ident, body }))
 }
 
 fn parse<'a>(input: &'a str) -> IResult<&'a str, Script> {
-    let (input, items) = many0(parse_item)(input)?;
+    let (input, items) = many0(ws(parse_item))(input)?;
     Ok((input, Script { items }))
 }
 
@@ -67,13 +114,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
     args.next();
     let script_file = args.next().unwrap();
+    // TODO: Default to looking for main
+    let function = args.next();
     let input = fs::read_to_string(&script_file)?;
 
     // TODO: Parse error handling
     let (_, items) = parse(&input).unwrap();
-    println!("{:?}", items);
-
-    process::exit(0);
+    let script = items.script(&function);
+    println!("{}", script);
 
     let mut child = Command::new("bash")
         .arg0(script_file)
@@ -81,8 +129,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         .stdin(Stdio::piped())
         .spawn()?;
 
-
-    child.stdin.as_mut().unwrap().write_all(input.as_bytes())?;
+    child.stdin.as_mut().unwrap().write_all(script.as_bytes())?;
 
     // TODO: Is this OK? Do zombies get cleaned up when we exit?
     match child.wait()?.code() {
