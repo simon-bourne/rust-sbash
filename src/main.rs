@@ -8,7 +8,6 @@ use std::{
     process::{self, Command, Stdio},
 };
 
-use itertools::Itertools;
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -28,14 +27,28 @@ struct Script<'a> {
     items: Vec<Item<'a>>,
 }
 
+fn count_newlines(s: &str) -> usize {
+    bytecount::count(s.as_bytes(), b'\n')
+}
+
 impl<'a> Script<'a> {
     fn script(&self, function: &Option<impl AsRef<str>>) -> String {
-        let function = function.as_ref().map_or("main", AsRef::as_ref);
-        format!(
-            "{}\n\nset -euo pipefail\n\n{} \"$@\"",
-            self.items.iter().map(Item::script).join("\n"),
-            function
-        )
+        if let Some(function) = function.as_ref() {
+            let mut script = String::new();
+
+            for item in &self.items {
+                script.push_str(&item.script(count_newlines(&script)));
+            }
+
+            script.push_str(&format!(
+                "\n\nset -euo pipefail\n\n{} \"$@\"",
+                function.as_ref()
+            ));
+
+            script
+        } else {
+            "".to_owned()
+        }
     }
 }
 
@@ -69,14 +82,21 @@ struct Item<'a> {
 // TODO: Make sure line numbers match up with bash line numbers
 // TODO: Rather than `script` method, use formatting
 impl<'a> Item<'a> {
-    fn script(&self) -> String {
+    fn script(&self, newline_count: usize) -> String {
         let name = self.fn_signature.name;
+        let current_line = newline_count + 1;
+        let current_body_line = current_line + 1;
+        let desired_body_line = self.body.location_line() as usize;
+
+        assert!(desired_body_line >= current_body_line);
+        let extra_newlines = "\n".repeat(desired_body_line - current_body_line);
 
         if self.body.is_empty() {
-            format!("{} () {{ :; }}", name)
+            format!("{}{} () {{ :; }}", extra_newlines, name)
         } else if self.is_inline {
             format!(
-                "{} () {{ {} # Line {} \n{}}}\n\n",
+                "{}{} () {{ {} # Line {} \n{}}};",
+                extra_newlines, 
                 name,
                 self.fn_signature.args(),
                 self.body.location_line(),
@@ -84,7 +104,8 @@ impl<'a> Item<'a> {
             )
         } else {
             format!(
-                "{} () {{ ( {} # Line {} \n{} ) }}\n\n",
+                "{}{} () {{ ( {} # Line {} \n{} ) }};",
+                extra_newlines,
                 name,
                 self.fn_signature.args(),
                 self.body.location_line(),

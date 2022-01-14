@@ -61,6 +61,7 @@ dependencies = [
 name = "sbash"
 version = "0.1.0"
 dependencies = [
+ "bytecount",
  "itertools",
  "nom",
  "nom_locate",
