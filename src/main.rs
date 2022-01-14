@@ -188,7 +188,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
     args.next();
     let script_file = args.next().unwrap();
-    // TODO: Default to looking for main
     let function = args.next();
     let input = fs::read_to_string(&script_file)?;
 
@@ -204,11 +203,22 @@ fn main() -> Result<(), Box<dyn Error>> {
         .stdin(Stdio::piped())
         .spawn()?;
 
-    child.stdin.as_mut().unwrap().write_all(script.as_bytes())?;
+    let wrote_stdin = child.stdin.as_mut().unwrap().write_all(script.as_bytes());
 
-    // TODO: Is this OK? Do zombies get cleaned up when we exit?
-    match child.wait()?.code() {
-        Some(code) => process::exit(code),
-        None => panic!("Process terminated by signal"),
-    }
+    match wrote_stdin {
+        Ok(_) => {
+            match child.wait()?.code() {
+                Some(code) => process::exit(code),
+                None => panic!("Process terminated by signal"),
+            }
+        },
+        Err(e) => {
+            // Kill the child and reap the process handle
+            child.kill().ok();
+            child.wait().ok();
+            Err(e)
+        },
+    }?;
+
+    Ok(())
 }
