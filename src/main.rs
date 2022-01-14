@@ -63,14 +63,6 @@ where
     delimited(multispace0, inner, multispace0)
 }
 
-fn parse_comment(input: Span) -> IResult<Span, Span> {
-    preceded(pair(tag("#"), space0), not_line_ending)(input)
-}
-
-fn parse_comments(input: Span) -> IResult<Span, Vec<Span>> {
-    many0(parse_comment)(input)
-}
-
 #[derive(Debug)]
 struct Item<'a> {
     is_pub: bool,
