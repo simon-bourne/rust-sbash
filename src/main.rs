@@ -105,7 +105,7 @@ fn identifier(input: Span) -> IResult<Span, Span> {
 fn text<'a>(
     parser: impl FnMut(Span<'a>) -> IResult<Span<'a>, Span<'a>>,
 ) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, &'a str> {
-    map(identifier, |s| *s.fragment())
+    map(parser, |s| *s.fragment())
 }
 
 fn parse_body(input: Span) -> IResult<Span, Span> {
