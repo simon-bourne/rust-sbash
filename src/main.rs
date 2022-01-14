@@ -16,11 +16,12 @@ use nom::{
         alpha1, alphanumeric1, line_ending, multispace0, not_line_ending, space0,
     },
     combinator::{eof, map, opt, recognize},
-    error::{context, convert_error, VerboseError},
+    error::{context, ErrorKind},
     multi::{many0, many_till, separated_list0},
     sequence::{delimited, pair, separated_pair, tuple},
     Finish, IResult,
 };
+use nom_greedyerror::{convert_error, GreedyError};
 use nom_locate::LocatedSpan;
 
 #[derive(Debug)]
@@ -46,7 +47,7 @@ impl<'a> Display for Script<'a> {
 
 type Span<'a> = LocatedSpan<&'a str>;
 
-type ParseResult<'a, T> = IResult<Span<'a>, T, VerboseError<Span<'a>>>;
+type ParseResult<'a, T> = IResult<Span<'a>, T, GreedyError<Span<'a>, ErrorKind>>;
 
 fn ws<'a, F: 'a, O>(inner: F) -> impl FnMut(Span<'a>) -> ParseResult<'a, O>
 where
@@ -208,16 +209,7 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     let (_, items) = match parse(input_span).finish() {
         Ok(ok) => Ok(ok),
-        Err(e) => {
-            // See <https://github.com/fflorent/nom_locate/issues/36>
-            let errors = e
-                .errors
-                .into_iter()
-                .map(|(input, error)| (*input.fragment(), error))
-                .collect();
-
-            Err(convert_error(input.as_str(), VerboseError { errors }))
-        }
+        Err(e) => Err(convert_error(input.as_str(), e)),
     }?;
 
     let script = format!("{}\n\nset -euo pipefail\n\n{} \"$@\"", items, function);
