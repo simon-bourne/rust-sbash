@@ -14,9 +14,9 @@ use nom::{
     character::complete::{
         alpha1, alphanumeric1, line_ending, multispace0, not_line_ending, space0,
     },
-    combinator::{map, opt, recognize},
+    combinator::{eof, map, opt, recognize},
     error::ParseError,
-    multi::{many0, separated_list0},
+    multi::{many0, many_till, separated_list0},
     sequence::{delimited, pair, preceded, separated_pair, tuple},
     IResult,
 };
@@ -96,7 +96,7 @@ impl<'a> Item<'a> {
         } else if self.is_inline {
             format!(
                 "{}{} () {{ {} # Line {} \n{}}};",
-                extra_newlines, 
+                extra_newlines,
                 name,
                 self.fn_signature.args(),
                 self.body.location_line(),
@@ -201,7 +201,7 @@ fn parse_item(input: Span) -> IResult<Span, Item> {
 }
 
 fn parse(input: Span) -> IResult<Span, Script> {
-    let (input, items) = many0(ws(parse_item))(input)?;
+    let (input, (items, _eof)) = many_till(ws(parse_item), eof)(input)?;
     Ok((input, Script { items }))
 }
 
