@@ -1,6 +1,7 @@
 use std::{
     env,
     error::Error,
+    fmt::{self, Display},
     fs,
     io::Write,
     iter,
@@ -31,24 +32,15 @@ fn count_newlines(s: &str) -> usize {
     bytecount::count(s.as_bytes(), b'\n')
 }
 
-impl<'a> Script<'a> {
-    fn script(&self, function: &Option<impl AsRef<str>>) -> String {
-        if let Some(function) = function.as_ref() {
-            let mut script = String::new();
+impl<'a> Display for Script<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let mut script = String::new();
 
-            for item in &self.items {
-                script.push_str(&item.script(count_newlines(&script)));
-            }
-
-            script.push_str(&format!(
-                "\n\nset -euo pipefail\n\n{} \"$@\"",
-                function.as_ref()
-            ));
-
-            script
-        } else {
-            "".to_owned()
+        for item in &self.items {
+            script.push_str(&item.script(count_newlines(&script)));
         }
+
+        write!(f, "{}", script)
     }
 }
 
@@ -95,7 +87,7 @@ impl<'a> Item<'a> {
             )
         } else {
             format!(
-                "{}{} () {{ ( {}\n{} ) }};",
+                "{}{} () {{ ( {}\n{}) }};",
                 extra_newlines,
                 name,
                 self.fn_signature.args(),
@@ -208,7 +200,7 @@ fn run() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
     args.next();
     let script_file = args.next().unwrap();
-    let function = args.next();
+    let function = args.next().unwrap_or_else(|| "main".to_owned());
     let input = fs::read_to_string(&script_file)?;
 
     // TODO: Parse error handling
@@ -228,7 +220,8 @@ fn run() -> Result<(), Box<dyn Error>> {
         }
     }?;
 
-    let script = items.script(&function);
+    let script = format!("{}\n\nset -euo pipefail\n\n{} \"$@\"", items, function);
+
     println!("{}", script);
 
     // TODO: Can we make a temporary file for the script so bash can read stdin?
