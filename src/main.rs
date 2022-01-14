@@ -87,20 +87,18 @@ impl<'a> Item<'a> {
             format!("{}{} () {{ :; }}", extra_newlines, name)
         } else if self.is_inline {
             format!(
-                "{}{} () {{ {} # Line {} \n{}}};",
+                "{}{} () {{ {}\n{}}};",
                 extra_newlines,
                 name,
                 self.fn_signature.args(),
-                self.body.location_line(),
                 self.body.fragment()
             )
         } else {
             format!(
-                "{}{} () {{ ( {} # Line {} \n{} ) }};",
+                "{}{} () {{ ( {}\n{} ) }};",
                 extra_newlines,
                 name,
                 self.fn_signature.args(),
-                self.body.location_line(),
                 self.body.fragment()
             )
         }
