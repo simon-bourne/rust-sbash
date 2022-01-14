@@ -56,19 +56,31 @@ fn parse_comments(input: &str) -> IResult<&str, Vec<&str>> {
 struct Item<'a> {
     is_pub: bool,
     is_inline: bool,
-    ident: &'a str,
+    fn_signature: FnSignature<'a>,
     body: &'a str,
 }
 
 // TODO: Make sure line numbers match up with bash line numbers
 impl<'a> Item<'a> {
     fn script(&self) -> String {
+        let name = self.fn_signature.name;
+
         if self.body.is_empty() {
-            format!("{} () {{ :; }}", self.ident)
+            format!("{} () {{ :; }}", name)
         } else if self.is_inline {
-            format!("{} () {{\n{}}}\n\n", self.ident, self.body)
+            format!(
+                "{} () {{ {}\n{}}}\n\n",
+                name,
+                self.fn_signature.args(),
+                self.body
+            )
         } else {
-            format!("{} () {{ ( \n{} ) }}\n\n", self.ident, self.body)
+            format!(
+                "{} () {{ ( {}\n{} ) }}\n\n",
+                name,
+                self.fn_signature.args(),
+                self.body
+            )
         }
     }
 }
@@ -93,9 +105,22 @@ fn parse_body(input: &str) -> IResult<&str, &str> {
     )))(input)
 }
 
+#[derive(Debug)]
 struct FnSignature<'a> {
     name: &'a str,
     args: Vec<&'a str>,
+}
+
+impl<'a> FnSignature<'a> {
+    fn args(&self) -> String {
+        let mut arg_str = String::new();
+
+        for arg in &self.args {
+            arg_str.push_str(&format!("{}=\"$1\"; shift; ", arg));
+        }
+
+        arg_str
+    }
 }
 
 fn parse_fn_signature(input: &str) -> IResult<&str, FnSignature> {
@@ -112,11 +137,11 @@ fn parse_fn_signature(input: &str) -> IResult<&str, FnSignature> {
 }
 
 fn parse_item(input: &str) -> IResult<&str, Item> {
-    let (input, ((is_pub, is_inline), (ident, body))) = separated_pair(
+    let (input, ((is_pub, is_inline), (fn_signature, body))) = separated_pair(
         pair(opt(ws(tag("pub"))), opt(ws(tag("inline")))),
         ws(tag("fn")),
         tuple((
-            identifier,
+            parse_fn_signature,
             ws(delimited(
                 tuple((tag("{"), space0, line_ending)),
                 parse_body,
@@ -130,7 +155,7 @@ fn parse_item(input: &str) -> IResult<&str, Item> {
         Item {
             is_pub: is_pub.is_some(),
             is_inline: is_inline.is_some(),
-            ident,
+            fn_signature,
             body,
         },
     ))

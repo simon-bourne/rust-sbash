@@ -1,9 +1,9 @@
-pub inline fn test1 {
+pub inline fn test1() {
     echo Hello from test1
 }
 
-fn test2 {
-    x=1
+fn test2(x, y, z) {
+    echo "$x, $y, $z"
     echo Arg0: "$0"
     echo Args: "$@"
 
@@ -11,9 +11,9 @@ fn test2 {
 
 }
 
-fn test3 {
+fn test3() {
 }
 
-fn main{
+fn main() {
     echo Hello from main
 }
