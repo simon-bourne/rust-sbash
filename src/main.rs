@@ -206,18 +206,16 @@ fn main() -> Result<(), Box<dyn Error>> {
     let wrote_stdin = child.stdin.as_mut().unwrap().write_all(script.as_bytes());
 
     match wrote_stdin {
-        Ok(_) => {
-            match child.wait()?.code() {
-                Some(code) => process::exit(code),
-                None => panic!("Process terminated by signal"),
-            }
+        Ok(_) => match child.wait()?.code() {
+            Some(code) => process::exit(code),
+            None => panic!("Process terminated by signal"),
         },
         Err(e) => {
             // Kill the child and reap the process handle
             child.kill().ok();
             child.wait().ok();
             Err(e)
-        },
+        }
     }?;
 
     Ok(())
