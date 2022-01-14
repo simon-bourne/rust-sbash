@@ -1,170 +1,23 @@
 use itertools::Itertools;
+use nom::branch::alt;
+use nom::bytes::complete::tag;
+use nom::character::complete::{
+    alpha1, alphanumeric1, line_ending, multispace0, not_line_ending, space0,
+};
+use nom::combinator::recognize;
+use nom::error::ParseError;
+use nom::multi::many0;
+use nom::sequence::{delimited, pair, preceded, tuple};
+use nom::IResult;
 use std::{
     env,
     error::Error,
     fs,
     io::Write,
     iter,
-    ops::Range,
     os::unix::prelude::CommandExt,
     process::{self, Command, Stdio},
 };
-
-use logos::{Lexer, Logos};
-
-#[derive(Logos, Debug, PartialEq)]
-enum Token {
-    #[token("pub")]
-    Pub,
-
-    #[token("inline")]
-    Inline,
-
-    #[token("fn")]
-    Fn,
-
-    #[token("(")]
-    OpenBracket,
-
-    #[token(")")]
-    CloseBracket,
-
-    #[token("{")]
-    OpenBrace,
-
-    #[token("}")]
-    CloseBrace,
-
-    #[token(",")]
-    Comma,
-
-    #[regex("a-zA-Z[a-zA-Z0-9_]*")]
-    Identifier,
-
-    #[error]
-    #[regex(r"[ \t\r\n\f]+", logos::skip)]
-    Error,
-}
-
-struct TokenStream<'a> {
-    lines: &'a [&'a str],
-    line_number: usize,
-    lex: Lexer<'a, Token>,
-}
-
-impl<'a> TokenStream<'a> {
-    fn new(lines: &'a [&'a str]) -> Self {
-        let lex = Token::lexer(lines[0]);
-        Self {
-            lines,
-            line_number: 0,
-            lex,
-        }
-    }
-
-    fn next(&mut self) -> Option<Token> {
-        let token = self.lex.next();
-
-        if token.is_some() {
-            token
-        } else {
-            let line_number = self.next_line();
-
-            if line_number < self.lines.len() {
-                self.lex = Token::lexer(self.line());
-                self.next()
-            } else {
-                None
-            }
-        }
-    }
-
-    fn span(&self) -> Range<usize> {
-        self.lex.span()
-    }
-
-    fn body(&mut self) -> Vec<&'a str> {
-        if let token = self.lex.next() {
-            panic!("Unexpected token before body");
-        }
-
-        let mut body = Vec::new();
-
-        loop {
-            let line_number = self.next_line();
-
-            if line_number < self.lines.len() {
-                let line = self.line();
-
-                if line.starts_with(' ') {
-                    body.push(line);
-                } else {
-                    self.lex = Token::lexer(line);
-                    return body;
-                }
-            } else {
-                panic!("Unexpected end of file");
-            }
-        }
-    }
-
-    fn next_line(&mut self) -> usize {
-        self.line_number += 1;
-        self.line_number
-    }
-
-    fn line(&self) -> &'a str {
-        self.lines[self.line_number]
-    }
-}
-
-struct IsInline(bool);
-struct IsPub(bool);
-
-fn script(tokens: &mut TokenStream) {
-    while let Some(token) = tokens.next() {
-        match token {
-            Token::Pub => inline_function(tokens, IsPub(true)),
-            Token::Inline => {
-                expect(tokens, Token::Fn);
-                function(tokens, IsInline(true), IsPub(false))
-            }
-            Token::Fn => function(tokens, IsInline(false), IsPub(false)),
-            Token::Error => panic!("Error"),
-            _ => panic!("Unexpected token {:?}", token),
-        }
-    }
-}
-
-fn inline_function(tokens: &mut TokenStream, public: IsPub) {
-    if let Some(token) = tokens.next() {
-        match token {
-            Token::Inline => {
-                expect(tokens, Token::Fn);
-                function(tokens, IsInline(true), public)
-            }
-            Token::Fn => function(tokens, IsInline(false), public),
-            Token::Error => panic!("Error"),
-            _ => panic!("Unexpected token {:?}", token),
-        }
-    }
-}
-
-fn expect(tokens: &mut TokenStream, token: Token) {
-    assert!(tokens.next().unwrap() == token);
-}
-
-fn function(tokens: &mut TokenStream, inline: IsInline, public: IsPub) {
-    if let Some(token) = tokens.next() {
-        match token {
-            Token::OpenBrace => {
-                tokens.body();
-            }
-            Token::Error => panic!("Error"),
-            _ => panic!("Unexpected token {:?}", token),
-        }
-    }
-}
 
 #[derive(Debug)]
 struct Script<'a> {
@@ -180,6 +33,23 @@ impl<'a> Script<'a> {
             function
         )
     }
+}
+
+fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(
+    inner: F,
+) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
+where
+    F: FnMut(&'a str) -> IResult<&'a str, O, E>,
+{
+    delimited(multispace0, inner, multispace0)
+}
+
+fn parse_comment(input: &str) -> IResult<&str, &str> {
+    preceded(pair(tag("#"), space0), not_line_ending)(input)
+}
+
+fn parse_comments(input: &str) -> IResult<&str, Vec<&str>> {
+    many0(parse_comment)(input)
 }
 
 #[derive(Debug)]
@@ -202,6 +72,43 @@ impl<'a> Item<'a> {
     }
 }
 
+fn identifier(input: &str) -> IResult<&str, &str> {
+    recognize(pair(
+        alt((alpha1, tag("_"))),
+        many0(alt((alphanumeric1, tag("_"), tag(".")))),
+    ))(input)
+}
+
+fn parse_body(input: &str) -> IResult<&str, &str> {
+    let (_, prefix) = space0(input)?;
+
+    if prefix.is_empty() {
+        return Ok((input, ""));
+    }
+
+    recognize(many0(pair(
+        alt((recognize(tuple((tag(prefix), not_line_ending))), space0)),
+        line_ending,
+    )))(input)
+}
+
+fn parse_item(input: &str) -> IResult<&str, Item> {
+    let (input, (ident, body)) = preceded(
+        tag("fn"),
+        tuple((
+            ws(identifier),
+            delimited(tuple((tag("{"), space0, line_ending)), parse_body, tag("}")),
+        )),
+    )(input)?;
+
+    Ok((input, Item { ident, body }))
+}
+
+fn parse(input: &str) -> IResult<&str, Script> {
+    let (input, items) = many0(ws(parse_item))(input)?;
+    Ok((input, Script { items }))
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
     args.next();
@@ -211,7 +118,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input = fs::read_to_string(&script_file)?;
 
     // TODO: Parse error handling
-    let items: Script = todo!();
+    let (_, items) = parse(&input).unwrap();
     let script = items.script(&function);
     println!("{}", script);
 
