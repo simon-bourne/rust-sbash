@@ -5,11 +5,12 @@ use std::{
     fs,
     io::Write,
     iter,
+    ops::Range,
     os::unix::prelude::CommandExt,
-    process::{self, Command, Stdio}, ops::Range,
+    process::{self, Command, Stdio},
 };
 
-use logos::{Logos, Lexer};
+use logos::{Lexer, Logos};
 
 #[derive(Logos, Debug, PartialEq)]
 enum Token {
@@ -54,24 +55,25 @@ struct TokenStream<'a> {
 impl<'a> TokenStream<'a> {
     fn new(lines: &'a [&'a str]) -> Self {
         let lex = Token::lexer(lines[0]);
-        Self{ lines, line_number: 0, lex }
+        Self {
+            lines,
+            line_number: 0,
+            lex,
+        }
     }
 
     fn next(&mut self) -> Option<Token> {
         let token = self.lex.next();
-        
+
         if token.is_some() {
             token
-        }
-        else {
-            let line_number = &mut self.line_number;
-            *line_number += 1;
+        } else {
+            let line_number = self.next_line();
 
-            if *line_number < self.lines.len() {
-                self.lex = Token::lexer(self.lines[*line_number]);
+            if line_number < self.lines.len() {
+                self.lex = Token::lexer(self.line());
                 self.next()
-            }
-            else {
+            } else {
                 None
             }
         }
@@ -81,8 +83,38 @@ impl<'a> TokenStream<'a> {
         self.lex.span()
     }
 
-    fn body(&mut self) {
+    fn body(&mut self) -> Vec<&'a str> {
+        if let token = self.lex.next() {
+            panic!("Unexpected token before body");
+        }
 
+        let mut body = Vec::new();
+
+        loop {
+            let line_number = self.next_line();
+
+            if line_number < self.lines.len() {
+                let line = self.line();
+
+                if line.starts_with(' ') {
+                    body.push(line);
+                } else {
+                    self.lex = Token::lexer(line);
+                    return body;
+                }
+            } else {
+                panic!("Unexpected end of file");
+            }
+        }
+    }
+
+    fn next_line(&mut self) -> usize {
+        self.line_number += 1;
+        self.line_number
+    }
+
+    fn line(&self) -> &'a str {
+        self.lines[self.line_number]
     }
 }
 
@@ -90,13 +122,16 @@ struct IsInline(bool);
 struct IsPub(bool);
 
 fn script(tokens: &mut TokenStream) {
-    if let Some(token) = tokens.next() {
+    while let Some(token) = tokens.next() {
         match token {
             Token::Pub => inline_function(tokens, IsPub(true)),
-            Token::Inline => function(tokens, IsInline(true), IsPub(false)),
-            Token::Fn => todo!(),
+            Token::Inline => {
+                expect(tokens, Token::Fn);
+                function(tokens, IsInline(true), IsPub(false))
+            }
+            Token::Fn => function(tokens, IsInline(false), IsPub(false)),
             Token::Error => panic!("Error"),
-            _ => panic!("Unexpected token {:?}", token)
+            _ => panic!("Unexpected token {:?}", token),
         }
     }
 }
@@ -104,26 +139,31 @@ fn script(tokens: &mut TokenStream) {
 fn inline_function(tokens: &mut TokenStream, public: IsPub) {
     if let Some(token) = tokens.next() {
         match token {
-            Token::Inline => function(tokens, IsInline(true), public),
-            Token::Fn => todo!(),
+            Token::Inline => {
+                expect(tokens, Token::Fn);
+                function(tokens, IsInline(true), public)
+            }
+            Token::Fn => function(tokens, IsInline(false), public),
             Token::Error => panic!("Error"),
-            _ => panic!("Unexpected token {:?}", token)
+            _ => panic!("Unexpected token {:?}", token),
         }
     }
+}
+
+fn expect(tokens: &mut TokenStream, token: Token) {
+    assert!(tokens.next().unwrap() == token);
 }
 
 fn function(tokens: &mut TokenStream, inline: IsInline, public: IsPub) {
     if let Some(token) = tokens.next() {
         match token {
-            Token::OpenBrace => body(tokens),
+            Token::OpenBrace => {
+                tokens.body();
+            }
             Token::Error => panic!("Error"),
-            _ => panic!("Unexpected token {:?}", token)
+            _ => panic!("Unexpected token {:?}", token),
         }
     }
-}
-
-fn body(tokens: &mut TokenStream) {
-    
 }
 
 #[derive(Debug)]
