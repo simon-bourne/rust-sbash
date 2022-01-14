@@ -15,7 +15,7 @@ use nom::{
         alpha1, alphanumeric1, line_ending, multispace0, not_line_ending, space0,
     },
     combinator::{eof, map, opt, recognize},
-    error::ParseError,
+    error::{context, ParseError},
     multi::{many0, many_till, separated_list0},
     sequence::{delimited, pair, separated_pair, tuple},
     IResult,
@@ -108,10 +108,13 @@ impl<'a> Item<'a> {
 }
 
 fn identifier(input: Span) -> IResult<Span, Span> {
-    recognize(pair(
-        alt((alpha1, tag("_"))),
-        many0(alt((alphanumeric1, tag("_")))),
-    ))(input)
+    context(
+        "identifier",
+        recognize(pair(
+            alt((alpha1, tag("_"))),
+            many0(alt((alphanumeric1, tag("_")))),
+        )),
+    )(input)
 }
 
 // TODO: Type alias for parser? Or is there one in nom?
@@ -155,30 +158,36 @@ impl<'a> FnSignature<'a> {
 }
 
 fn parse_fn_signature(input: Span) -> IResult<Span, FnSignature> {
-    let (input, (name, args)) = pair(
-        text(identifier),
-        ws(delimited(
-            tag("("),
-            separated_list0(tag(","), ws(text(identifier))),
-            tag(")"),
-        )),
+    let (input, (name, args)) = context(
+        "function signature",
+        pair(
+            text(identifier),
+            ws(delimited(
+                tag("("),
+                separated_list0(tag(","), ws(text(identifier))),
+                tag(")"),
+            )),
+        ),
     )(input)?;
 
     Ok((input, FnSignature { name, args }))
 }
 
 fn parse_item(input: Span) -> IResult<Span, Item> {
-    let (input, ((is_pub, is_inline), (fn_signature, body))) = separated_pair(
-        pair(opt(ws(tag("pub"))), opt(ws(tag("inline")))),
-        ws(tag("fn")),
-        tuple((
-            parse_fn_signature,
-            ws(delimited(
-                tuple((tag("{"), space0, line_ending)),
-                parse_body,
-                tag("}"),
+    let (input, ((is_pub, is_inline), (fn_signature, body))) = context(
+        "function",
+        separated_pair(
+            pair(opt(ws(tag("pub"))), opt(ws(tag("inline")))),
+            ws(tag("fn")),
+            tuple((
+                parse_fn_signature,
+                ws(delimited(
+                    tuple((tag("{"), space0, line_ending)),
+                    parse_body,
+                    tag("}"),
+                )),
             )),
-        )),
+        ),
     )(input)?;
 
     Ok((
