@@ -17,7 +17,7 @@ use nom::{
     combinator::{eof, map, opt, recognize},
     error::ParseError,
     multi::{many0, many_till, separated_list0},
-    sequence::{delimited, pair, preceded, separated_pair, tuple},
+    sequence::{delimited, pair, separated_pair, tuple},
     IResult,
 };
 use nom_locate::LocatedSpan;
