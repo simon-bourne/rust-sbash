@@ -15,10 +15,10 @@ use nom::{
         alpha1, alphanumeric1, line_ending, multispace0, not_line_ending, space0,
     },
     combinator::{eof, map, opt, recognize},
-    error::{context, ParseError},
+    error::{context, convert_error, VerboseError},
     multi::{many0, many_till, separated_list0},
     sequence::{delimited, pair, separated_pair, tuple},
-    IResult,
+    Finish, IResult,
 };
 use nom_locate::LocatedSpan;
 
@@ -54,11 +54,11 @@ impl<'a> Script<'a> {
 
 type Span<'a> = LocatedSpan<&'a str>;
 
-fn ws<'a, F: 'a, O, E: ParseError<Span<'a>>>(
-    inner: F,
-) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, O, E>
+type ParseResult<'a, T> = IResult<Span<'a>, T, VerboseError<Span<'a>>>;
+
+fn ws<'a, F: 'a, O>(inner: F) -> impl FnMut(Span<'a>) -> ParseResult<'a, O>
 where
-    F: FnMut(Span<'a>) -> IResult<Span<'a>, O, E>,
+    F: FnMut(Span<'a>) -> ParseResult<'a, O>,
 {
     delimited(multispace0, inner, multispace0)
 }
@@ -107,7 +107,7 @@ impl<'a> Item<'a> {
     }
 }
 
-fn identifier(input: Span) -> IResult<Span, Span> {
+fn identifier(input: Span) -> ParseResult<Span> {
     context(
         "identifier",
         recognize(pair(
@@ -119,12 +119,12 @@ fn identifier(input: Span) -> IResult<Span, Span> {
 
 // TODO: Type alias for parser? Or is there one in nom?
 fn text<'a>(
-    parser: impl FnMut(Span<'a>) -> IResult<Span<'a>, Span<'a>>,
-) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, &'a str> {
+    parser: impl FnMut(Span<'a>) -> ParseResult<'a, Span<'a>>,
+) -> impl FnMut(Span<'a>) -> ParseResult<'a, &'a str> {
     map(parser, |s| *s.fragment())
 }
 
-fn parse_body(input: Span) -> IResult<Span, Span> {
+fn parse_body(input: Span) -> ParseResult<Span> {
     let (_, prefix) = space0(input)?;
 
     if prefix.is_empty() {
@@ -157,7 +157,7 @@ impl<'a> FnSignature<'a> {
     }
 }
 
-fn parse_fn_signature(input: Span) -> IResult<Span, FnSignature> {
+fn parse_fn_signature(input: Span) -> ParseResult<FnSignature> {
     let (input, (name, args)) = context(
         "function signature",
         pair(
@@ -173,7 +173,7 @@ fn parse_fn_signature(input: Span) -> IResult<Span, FnSignature> {
     Ok((input, FnSignature { name, args }))
 }
 
-fn parse_item(input: Span) -> IResult<Span, Item> {
+fn parse_item(input: Span) -> ParseResult<Item> {
     let (input, ((is_pub, is_inline), (fn_signature, body))) = context(
         "function",
         separated_pair(
@@ -201,12 +201,12 @@ fn parse_item(input: Span) -> IResult<Span, Item> {
     ))
 }
 
-fn parse(input: Span) -> IResult<Span, Script> {
+fn parse(input: Span) -> ParseResult<Script> {
     let (input, (items, _eof)) = many_till(ws(parse_item), eof)(input)?;
     Ok((input, Script { items }))
 }
 
-fn main() -> Result<(), Box<dyn Error>> {
+fn run() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
     args.next();
     let script_file = args.next().unwrap();
@@ -214,7 +214,22 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input = fs::read_to_string(&script_file)?;
 
     // TODO: Parse error handling
-    let (_, items) = parse(Span::new(&input)).unwrap();
+    let input_span = Span::new(&input);
+
+    let (_, items) = match parse(input_span).finish() {
+        Ok(ok) => Ok(ok),
+        Err(e) => {
+            // See <https://github.com/fflorent/nom_locate/issues/36>
+            let errors: Vec<_> = e
+                .errors
+                .into_iter()
+                .map(|(input, error)| (*input.fragment(), error))
+                .collect();
+
+            Err(convert_error(input.as_str(), VerboseError { errors }))
+        }
+    }?;
+
     let script = items.script(&function);
     println!("{}", script);
 
@@ -241,4 +256,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     }?;
 
     Ok(())
+}
+
+fn main() {
+    match run() {
+        Ok(_) => (),
+        Err(e) => println!("{}", e),
+    }
 }
