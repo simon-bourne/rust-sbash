@@ -1,14 +1,3 @@
-use itertools::Itertools;
-use nom::branch::alt;
-use nom::bytes::complete::tag;
-use nom::character::complete::{
-    alpha1, alphanumeric1, line_ending, multispace0, not_line_ending, space0,
-};
-use nom::combinator::{opt, recognize};
-use nom::error::ParseError;
-use nom::multi::{many0, separated_list0};
-use nom::sequence::{delimited, pair, preceded, separated_pair, tuple};
-use nom::IResult;
 use std::{
     env,
     error::Error,
@@ -18,6 +7,21 @@ use std::{
     os::unix::prelude::CommandExt,
     process::{self, Command, Stdio},
 };
+
+use itertools::Itertools;
+use nom::{
+    branch::alt,
+    bytes::complete::tag,
+    character::complete::{
+        alpha1, alphanumeric1, line_ending, multispace0, not_line_ending, space0,
+    },
+    combinator::{map, opt, recognize},
+    error::ParseError,
+    multi::{many0, separated_list0},
+    sequence::{delimited, pair, preceded, separated_pair, tuple},
+    IResult,
+};
+use nom_locate::LocatedSpan;
 
 #[derive(Debug)]
 struct Script<'a> {
@@ -35,20 +39,22 @@ impl<'a> Script<'a> {
     }
 }
 
-fn ws<'a, F: 'a, O, E: ParseError<&'a str>>(
+type Span<'a> = LocatedSpan<&'a str>;
+
+fn ws<'a, F: 'a, O, E: ParseError<Span<'a>>>(
     inner: F,
-) -> impl FnMut(&'a str) -> IResult<&'a str, O, E>
+) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, O, E>
 where
-    F: FnMut(&'a str) -> IResult<&'a str, O, E>,
+    F: FnMut(Span<'a>) -> IResult<Span<'a>, O, E>,
 {
     delimited(multispace0, inner, multispace0)
 }
 
-fn parse_comment(input: &str) -> IResult<&str, &str> {
+fn parse_comment(input: Span) -> IResult<Span, Span> {
     preceded(pair(tag("#"), space0), not_line_ending)(input)
 }
 
-fn parse_comments(input: &str) -> IResult<&str, Vec<&str>> {
+fn parse_comments(input: Span) -> IResult<Span, Vec<Span>> {
     many0(parse_comment)(input)
 }
 
@@ -57,10 +63,11 @@ struct Item<'a> {
     is_pub: bool,
     is_inline: bool,
     fn_signature: FnSignature<'a>,
-    body: &'a str,
+    body: Span<'a>,
 }
 
 // TODO: Make sure line numbers match up with bash line numbers
+// TODO: Rather than `script` method, use formatting
 impl<'a> Item<'a> {
     fn script(&self) -> String {
         let name = self.fn_signature.name;
@@ -69,35 +76,46 @@ impl<'a> Item<'a> {
             format!("{} () {{ :; }}", name)
         } else if self.is_inline {
             format!(
-                "{} () {{ {}\n{}}}\n\n",
+                "{} () {{ {} # Line {} \n{}}}\n\n",
                 name,
                 self.fn_signature.args(),
-                self.body
+                self.body.location_line(),
+                self.body.fragment()
             )
         } else {
             format!(
-                "{} () {{ ( {}\n{} ) }}\n\n",
+                "{} () {{ ( {} # Line {} \n{} ) }}\n\n",
                 name,
                 self.fn_signature.args(),
-                self.body
+                self.body.location_line(),
+                self.body.fragment()
             )
         }
     }
 }
 
-fn identifier(input: &str) -> IResult<&str, &str> {
+fn identifier(input: Span) -> IResult<Span, Span> {
     recognize(pair(
         alt((alpha1, tag("_"))),
         many0(alt((alphanumeric1, tag("_")))),
     ))(input)
 }
 
-fn parse_body(input: &str) -> IResult<&str, &str> {
+// TODO: Type alias for parser? Or is there one in nom?
+fn text<'a>(
+    parser: impl FnMut(Span<'a>) -> IResult<Span<'a>, Span<'a>>,
+) -> impl FnMut(Span<'a>) -> IResult<Span<'a>, &'a str> {
+    map(identifier, |s| *s.fragment())
+}
+
+fn parse_body(input: Span) -> IResult<Span, Span> {
     let (_, prefix) = space0(input)?;
 
     if prefix.is_empty() {
-        return Ok((input, ""));
+        return Ok((input, prefix));
     }
+
+    let prefix = *prefix.fragment();
 
     recognize(many0(pair(
         alt((recognize(tuple((tag(prefix), not_line_ending))), space0)),
@@ -123,12 +141,12 @@ impl<'a> FnSignature<'a> {
     }
 }
 
-fn parse_fn_signature(input: &str) -> IResult<&str, FnSignature> {
+fn parse_fn_signature(input: Span) -> IResult<Span, FnSignature> {
     let (input, (name, args)) = pair(
-        identifier,
+        text(identifier),
         ws(delimited(
             tag("("),
-            separated_list0(tag(","), ws(identifier)),
+            separated_list0(tag(","), ws(text(identifier))),
             tag(")"),
         )),
     )(input)?;
@@ -136,7 +154,7 @@ fn parse_fn_signature(input: &str) -> IResult<&str, FnSignature> {
     Ok((input, FnSignature { name, args }))
 }
 
-fn parse_item(input: &str) -> IResult<&str, Item> {
+fn parse_item(input: Span) -> IResult<Span, Item> {
     let (input, ((is_pub, is_inline), (fn_signature, body))) = separated_pair(
         pair(opt(ws(tag("pub"))), opt(ws(tag("inline")))),
         ws(tag("fn")),
@@ -161,7 +179,7 @@ fn parse_item(input: &str) -> IResult<&str, Item> {
     ))
 }
 
-fn parse(input: &str) -> IResult<&str, Script> {
+fn parse(input: Span) -> IResult<Span, Script> {
     let (input, items) = many0(ws(parse_item))(input)?;
     Ok((input, Script { items }))
 }
@@ -175,7 +193,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     let input = fs::read_to_string(&script_file)?;
 
     // TODO: Parse error handling
-    let (_, items) = parse(&input).unwrap();
+    let (_, items) = parse(Span::new(&input)).unwrap();
     let script = items.script(&function);
     println!("{}", script);
 

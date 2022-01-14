@@ -6,3 +6,4 @@ edition = "2021"
 [dependencies]
 nom="7.1.0"
 itertools = "0.10.3"
+nom_locate = "4.0.0"
