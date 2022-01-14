@@ -220,7 +220,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         Ok(ok) => Ok(ok),
         Err(e) => {
             // See <https://github.com/fflorent/nom_locate/issues/36>
-            let errors: Vec<_> = e
+            let errors = e
                 .errors
                 .into_iter()
                 .map(|(input, error)| (*input.fragment(), error))
