@@ -9,14 +9,14 @@ use nom::{
     },
     combinator::{eof, map, opt, peek, recognize},
     error::{context, ErrorKind},
-    multi::{many0, many1, many_till, separated_list0},
-    sequence::{delimited, pair, tuple, preceded},
+    multi::{many0, many1, many_till},
+    sequence::{delimited, pair, preceded, tuple},
     Finish, IResult,
 };
 use nom_greedyerror::{convert_error, GreedyError};
 use nom_locate::LocatedSpan;
 
-use crate::{FnSignature, Item, ItemArg, ParseError, Description};
+use crate::{Description, FnSignature, Item, ItemArg, ParseError};
 
 pub fn parse(input: &str) -> Result<Vec<Item>, ParseError> {
     let input_span = Span::new(input);
@@ -35,27 +35,29 @@ fn script(input: Span) -> ParseResult<Vec<Item>> {
 }
 
 fn item(input: Span) -> ParseResult<Item> {
-    let (input, (description, (is_pub, is_inline), _, (fn_signature, body))) = context(
-        "function",
-        tuple((
-            doc_comment('>'),
-            pair(opt(ws(tag("pub"))), opt(ws(tag("inline")))),
-            ws(tag("fn")),
+    let (input, (pre_description, (is_pub, is_inline), _, (fn_signature, post_description, body))) =
+        context(
+            "function",
             tuple((
-                fn_signature,
-                ws(delimited(
-                    tuple((tag("{"), space0, opt(line_comment), many1(line_ending))),
-                    body,
-                    tag("}"),
+                doc_comment('>'),
+                pair(opt(ws(tag("pub"))), opt(ws(tag("inline")))),
+                ws(tag("fn")),
+                tuple((
+                    fn_signature,
+                    doc_comment('<'),
+                    ws(delimited(
+                        tuple((tag("{"), space0, opt(line_comment), many1(line_ending))),
+                        body,
+                        tag("}"),
+                    )),
                 )),
             )),
-        )),
-    )(input)?;
+        )(input)?;
 
     Ok((
         input,
         Item {
-            description: Description::new(&description),
+            description: Description::new(&pre_description, &post_description),
             is_pub: is_pub.is_some(),
             is_inline: is_inline.is_some(),
             fn_signature,
@@ -66,28 +68,55 @@ fn item(input: Span) -> ParseResult<Item> {
 }
 
 fn fn_signature(input: Span) -> ParseResult<FnSignature> {
-    let (input, (name, args)) = context(
+    let (input, (name, (args, last_arg))) = context(
         "function signature",
         pair(
             text(identifier),
             ws(delimited(
                 tag("("),
-                separated_list0(tag(","), ws(arg)),
+                pair(many0(ws(arg)), opt(ws(last_arg))),
                 tag(")"),
             )),
         ),
     )(input)?;
 
-    Ok((input, FnSignature { name, args }))
+    Ok((
+        input,
+        FnSignature {
+            name,
+            args: args.into_iter().chain(last_arg.into_iter()).collect(),
+        },
+    ))
 }
 
 fn arg(input: Span) -> ParseResult<ItemArg> {
-    let (s, (doc, name)) = pair(doc_comment('>'), text(identifier))(input)?;
+    let (s, (pre_description, name, _comma, post_description)) = tuple((
+        doc_comment('>'),
+        text(identifier),
+        char(','),
+        doc_comment('<'),
+    ))(input)?;
 
+    item_arg(s, &pre_description, &post_description, name)
+}
+
+fn last_arg(input: Span) -> ParseResult<ItemArg> {
+    let (s, (pre_description, name, post_description)) =
+        tuple((doc_comment('>'), text(identifier), doc_comment('<')))(input)?;
+
+    item_arg(s, &pre_description, &post_description, name)
+}
+
+fn item_arg<'a>(
+    s: Span<'a>,
+    pre_description: &[Span<'a>],
+    post_description: &[Span<'a>],
+    name: &'a str,
+) -> ParseResult<'a, ItemArg<'a>> {
     Ok((
         s,
         ItemArg {
-            description: Description::new(&doc),
+            description: Description::new(pre_description, post_description),
             name,
         },
     ))

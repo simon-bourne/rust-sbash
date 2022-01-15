@@ -233,8 +233,17 @@ struct ItemArg<'a> {
 struct Description(String);
 
 impl Description {
-    fn new(description: &[Span]) -> Self {
-        Self(description.iter().map(|s| s.fragment().trim()).join(" "))
+    fn new<'a>(
+        pre_description: impl IntoIterator<Item = &'a Span<'a>>,
+        post_description: impl IntoIterator<Item = &'a Span<'a>>,
+    ) -> Self {
+        Self(
+            pre_description
+                .into_iter()
+                .chain(post_description.into_iter())
+                .map(|s| s.fragment().trim())
+                .join(" "),
+        )
     }
 }
 
