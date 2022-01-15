@@ -1,5 +1,6 @@
 use std::fmt::{self, Display};
 
+use clap::{App, Arg};
 use thiserror::Error;
 
 mod parser;
@@ -12,6 +13,24 @@ pub struct Script<'a> {
 impl<'a> Script<'a> {
     pub fn parse(input: &'a str) -> Result<Self, ParseError> {
         parser::parse(input)
+    }
+
+    pub fn arg_parser(&self, exe_name: &str) -> App {
+        let mut app = App::new(exe_name);
+
+        for item in &self.items {
+            if item.is_pub {
+                let mut subcmd = App::new(item.fn_signature.name);
+
+                for arg in &item.fn_signature.args {
+                    subcmd = subcmd.arg(Arg::new(*arg));
+                }
+
+                app = app.subcommand(subcmd);
+            }
+        }
+
+        app
     }
 }
 
