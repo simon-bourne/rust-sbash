@@ -54,44 +54,59 @@ impl<'a> Script<'a> {
         exe_name: &str,
         args: impl IntoIterator<Item = String>,
     ) -> (String, Vec<String>) {
-        let mut app = App::new(exe_name);
+        let app = App::new(exe_name);
 
         if let Some(main_index) = self.only_pub_main_index {
-            let item = &self.items[main_index];
-
-            let (app, arg_names) = item_args(app, item);
-            let arg_matches = app.get_matches_from(args);
-
-            (
-                item.fn_signature.name.to_owned(),
-                extract_args(&arg_matches, arg_names),
-            )
+            self.single_item_args(main_index, app, args)
         } else {
-            let mut name_to_args = HashMap::new();
-
-            for item in &self.items {
-                let name = item.fn_signature.name;
-
-                if item.is_pub {
-                    let (subcmd, arg_names) = item_args(App::new(name), item);
-
-                    name_to_args.insert(name, arg_names);
-                    app = app.subcommand(subcmd);
-                }
-            }
-
-            let arg_matches = app.get_matches_from(args);
-            let (name, subcmd_matches) = arg_matches.subcommand().unwrap();
-
-            (
-                name.to_owned(),
-                extract_args(subcmd_matches, name_to_args.remove(name).unwrap()),
-            )
+            self.subcmd_args(app, args)
         }
+    }
+
+    fn subcmd_args(
+        &'a self,
+        mut app: App<'a>,
+        args: impl IntoIterator<Item = String>,
+    ) -> (String, Vec<String>) {
+        let mut name_to_args = HashMap::new();
+        
+        for item in &self.items {
+            let name = item.fn_signature.name;
+
+            if item.is_pub {
+                let (subcmd, arg_names) = item_arg_spec(App::new(name), item);
+
+                name_to_args.insert(name, arg_names);
+                app = app.subcommand(subcmd);
+            }
+        }
+        let arg_matches = app.get_matches_from(args);
+        let (name, subcmd_matches) = arg_matches.subcommand().unwrap();
+
+        (
+            name.to_owned(),
+            extract_args(subcmd_matches, name_to_args.remove(name).unwrap()),
+        )
+    }
+
+    fn single_item_args(
+        &'a self,
+        main_index: usize,
+        app: App<'a>,
+        args: impl IntoIterator<Item = String>,
+    ) -> (String, Vec<String>) {
+        let item = &self.items[main_index];
+        let (app, arg_names) = item_arg_spec(app, item);
+        let arg_matches = app.get_matches_from(args);
+
+        (
+            item.fn_signature.name.to_owned(),
+            extract_args(&arg_matches, arg_names),
+        )
     }
 }
 
-fn item_args<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>) {
+fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>) {
     let mut arg_names = Vec::new();
 
     for &arg in &item.fn_signature.args {
