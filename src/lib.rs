@@ -63,7 +63,7 @@ fn extract_args(
     mut name_to_args: HashMap<&str, Vec<&str>>,
 ) -> Result<(String, Vec<String>), String> {
     let arg_matches = app.get_matches_from(args);
-    
+
     match arg_matches.subcommand() {
         Some((name, subcmd_matches)) => {
             let arg_values = name_to_args
