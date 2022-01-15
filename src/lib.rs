@@ -110,7 +110,7 @@ fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>
     let mut arg_names = Vec::new();
 
     for &arg in &item.fn_signature.args {
-        app = app.arg(Arg::new(arg).required(true));
+        app = app.arg(Arg::new(arg).required(true).multiple_values(false));
         arg_names.push(arg);
     }
 
