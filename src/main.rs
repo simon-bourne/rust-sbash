@@ -27,7 +27,6 @@ fn run() -> Result<(), Box<dyn Error>> {
     // TODO: Can we make a temporary file for the script so bash can read stdin?
     let mut child = Command::new("bash")
         .arg0(script_file)
-        .arg("-s")
         .args(iter::once("-s".to_owned()).chain(args))
         .stdin(Stdio::piped())
         .spawn()?;

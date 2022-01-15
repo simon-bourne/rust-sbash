@@ -73,7 +73,13 @@ impl<'a> Script<'a> {
             let name = item.fn_signature.name;
 
             if item.is_pub {
-                let (subcmd, arg_names) = item_arg_spec(App::new(name), item);
+                let mut subcmd_app = App::new(name);
+
+                if let Some(desc) = item.description {
+                    subcmd_app = subcmd_app.about(desc);
+                }
+        
+                let (subcmd, arg_names) = item_arg_spec(subcmd_app, item);
 
                 name_to_args.insert(name, arg_names);
                 app = app.subcommand(subcmd);
@@ -96,7 +102,12 @@ impl<'a> Script<'a> {
         args: impl IntoIterator<Item = String>,
     ) -> (String, Vec<String>) {
         let item = &self.items[main_index];
-        let (app, arg_names) = item_arg_spec(app, item);
+        let (mut app, arg_names) = item_arg_spec(app, item);
+
+        if let Some(desc) = item.description {
+            app = app.about(desc);
+        }
+
         let arg_matches = app.get_matches_from(args);
 
         (
@@ -109,9 +120,9 @@ impl<'a> Script<'a> {
 fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>) {
     let mut arg_names = Vec::new();
 
-    for &arg in &item.fn_signature.args {
-        app = app.arg(Arg::new(arg).required(true).multiple_values(false));
-        arg_names.push(arg);
+    for &arg_name in &item.fn_signature.args {
+        app = app.arg(Arg::new(arg_name).required(true).multiple_values(false));
+        arg_names.push(arg_name);
     }
 
     (app, arg_names)
@@ -152,6 +163,7 @@ fn count_newlines(s: &str) -> usize {
 
 #[derive(Debug)]
 pub struct Item<'a> {
+    description: Option<&'a str>,
     is_pub: bool,
     is_inline: bool,
     fn_signature: FnSignature<'a>,

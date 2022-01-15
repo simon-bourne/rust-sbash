@@ -1,13 +1,16 @@
 use nom::{
     branch::alt,
     bytes::complete::tag,
-    character::complete::{
-        alpha1, alphanumeric1, line_ending, multispace1, not_line_ending, space0,
+    character::{
+        complete::{
+            alpha1, alphanumeric1, line_ending, multispace1, none_of, not_line_ending, space0,
+        },
+        streaming::char,
     },
-    combinator::{eof, map, opt, recognize},
+    combinator::{eof, map, opt, peek, recognize},
     error::{context, ErrorKind},
     multi::{many0, many1, many_till, separated_list0},
-    sequence::{delimited, pair, separated_pair, tuple},
+    sequence::{delimited, pair, tuple},
     Finish, IResult,
 };
 use nom_greedyerror::{convert_error, GreedyError};
@@ -32,9 +35,10 @@ fn script(input: Span) -> ParseResult<Vec<Item>> {
 }
 
 fn item(input: Span) -> ParseResult<Item> {
-    let (input, ((is_pub, is_inline), (fn_signature, body))) = context(
+    let (input, (description, (is_pub, is_inline), _, (fn_signature, body))) = context(
         "function",
-        separated_pair(
+        tuple((
+            doc_comment('>'),
             pair(opt(ws(tag("pub"))), opt(ws(tag("inline")))),
             ws(tag("fn")),
             tuple((
@@ -45,12 +49,13 @@ fn item(input: Span) -> ParseResult<Item> {
                     tag("}"),
                 )),
             )),
-        ),
+        )),
     )(input)?;
 
     Ok((
         input,
         Item {
+            description: description.map(|s| *s.fragment()),
             is_pub: is_pub.is_some(),
             is_inline: is_inline.is_some(),
             fn_signature,
@@ -128,5 +133,18 @@ fn ws_or_comments(input: Span) -> ParseResult<()> {
 }
 
 fn line_comment(input: Span) -> ParseResult<Span> {
-    recognize(tuple((tag("#"), not_line_ending)))(input)
+    recognize(tuple((
+        tag("#"),
+        peek(alt((eof, recognize(none_of("><^"))))),
+        not_line_ending,
+    )))(input)
+}
+
+fn doc_comment<'a>(prefix: char) -> impl FnMut(Span<'a>) -> ParseResult<'a, Option<Span<'a>>> {
+    // TODO: Trim and combine many doc comments
+    opt(ws(delimited(
+        pair(char('#'), char(prefix)),
+        not_line_ending,
+        alt((eof, line_ending)),
+    )))
 }

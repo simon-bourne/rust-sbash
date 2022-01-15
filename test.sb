@@ -1,12 +1,15 @@
-pub inline fn test1() {
+#> A description of test1
+# test
+pub inline fn test1() {#
     echo Hello from test1
 }
 
+#> A description of test2
 pub fn test2(
     x, 
     y, 
     z
-) {
+) {# 
     echo "$x, $y, $z"
     echo Arg0: "$0"
     echo Args: "$@"
@@ -15,9 +18,10 @@ pub fn test2(
 
 }
 
-fn test3() {
+fn test3() {#test
 }
 
-fn main() {
+fn main() { # test
     echo Hello from main
 }
+# gfdgdf    
