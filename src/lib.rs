@@ -16,8 +16,6 @@ pub struct Script<'a> {
 
 impl<'a> Script<'a> {
     pub fn parse(input: &'a str) -> Result<Self, ParseError> {
-        // TODO: Split main out into enum with etiher Main or Items
-        // TODO: .. in function sigs to allow "$@"
         let items = parser::parse(input)?;
         let mut names = HashSet::new();
         let mut only_pub_main_index = None;
@@ -69,7 +67,7 @@ impl<'a> Script<'a> {
         args: impl IntoIterator<Item = String>,
     ) -> (String, Vec<String>) {
         let mut name_to_args = HashMap::new();
-        
+
         for item in &self.items {
             let name = item.fn_signature.name;
 
@@ -80,6 +78,7 @@ impl<'a> Script<'a> {
                 app = app.subcommand(subcmd);
             }
         }
+
         let arg_matches = app.get_matches_from(args);
         let (name, subcmd_matches) = arg_matches.subcommand().unwrap();
 
