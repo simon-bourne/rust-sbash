@@ -11,21 +11,42 @@ mod parser;
 #[derive(Debug)]
 pub struct Script<'a> {
     items: Vec<Item<'a>>,
+    only_pub_main_index: Option<usize>,
 }
 
 impl<'a> Script<'a> {
     pub fn parse(input: &'a str) -> Result<Self, ParseError> {
-        // TODO: Split main out into enum with etiher Main or
-        // Items
-        // TODO: ... in function sigs to allow "$@"
+        // TODO: Split main out into enum with etiher Main or Items
+        // TODO: .. in function sigs to allow "$@"
         let items = parser::parse(input)?;
         let mut names = HashSet::new();
+        let mut only_pub_main_index = None;
+        let mut pub_count = 0;
 
-        for item in &items {
-            assert!(names.insert(item.fn_signature.name));
+        for (index, item) in items.iter().enumerate() {
+            let name = item.fn_signature.name;
+
+            assert!(names.insert(name));
+
+            let is_pub = item.is_pub;
+
+            if is_pub {
+                pub_count += 1;
+            }
+
+            if is_pub && name == "main" {
+                only_pub_main_index = Some(index);
+            }
         }
 
-        Ok(Self { items })
+        if pub_count != 1 {
+            only_pub_main_index = None;
+        }
+
+        Ok(Self {
+            items,
+            only_pub_main_index,
+        })
     }
 
     pub fn parse_args(
@@ -34,39 +55,55 @@ impl<'a> Script<'a> {
         args: impl IntoIterator<Item = String>,
     ) -> (String, Vec<String>) {
         let mut app = App::new(exe_name);
-        let mut name_to_args = HashMap::new();
 
-        for item in &self.items {
-            let name = item.fn_signature.name;
+        if let Some(main_index) = self.only_pub_main_index {
+            let item = &self.items[main_index];
 
-            if item.is_pub {
-                let mut subcmd = App::new(name);
-                let mut arg_names = Vec::new();
+            let (app, arg_names) = item_args(app, item);
+            let arg_matches = app.get_matches_from(args);
 
-                for &arg in &item.fn_signature.args {
-                    subcmd = subcmd.arg(Arg::new(arg).required(true));
-                    arg_names.push(arg);
+            (
+                item.fn_signature.name.to_owned(),
+                extract_args(&arg_matches, arg_names),
+            )
+        } else {
+            let mut name_to_args = HashMap::new();
+
+            for item in &self.items {
+                let name = item.fn_signature.name;
+
+                if item.is_pub {
+                    let (subcmd, arg_names) = item_args(App::new(name), item);
+
+                    name_to_args.insert(name, arg_names);
+                    app = app.subcommand(subcmd);
                 }
-
-                name_to_args.insert(name, arg_names);
-                app = app.subcommand(subcmd);
             }
-        }
 
-        let arg_matches = app.get_matches_from(args);
-        let (name, subcmd_matches) = arg_matches.subcommand().unwrap();
-        extract_args(name, subcmd_matches, name_to_args)
+            let arg_matches = app.get_matches_from(args);
+            let (name, subcmd_matches) = arg_matches.subcommand().unwrap();
+
+            (
+                name.to_owned(),
+                extract_args(subcmd_matches, name_to_args.remove(name).unwrap()),
+            )
+        }
     }
 }
 
-fn extract_args(
-    name: &str,
-    arg_matches: &ArgMatches,
-    mut name_to_args: HashMap<&str, Vec<&str>>,
-) -> (String, Vec<String>) {
-    let arg_values = name_to_args
-        .remove(name)
-        .unwrap()
+fn item_args<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>) {
+    let mut arg_names = Vec::new();
+
+    for &arg in &item.fn_signature.args {
+        app = app.arg(Arg::new(arg).required(true));
+        arg_names.push(arg);
+    }
+
+    (app, arg_names)
+}
+
+fn extract_args(arg_matches: &ArgMatches, arg_names: Vec<&str>) -> Vec<String> {
+    arg_names
         .into_iter()
         .map(|arg_name| {
             let mut values = arg_matches.values_of(arg_name).unwrap();
@@ -75,9 +112,7 @@ fn extract_args(
 
             value.to_owned()
         })
-        .collect();
-
-    (name.to_owned(), arg_values)
+        .collect()
 }
 
 impl<'a> Display for Script<'a> {
