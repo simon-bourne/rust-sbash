@@ -3,7 +3,7 @@ use std::{
     fmt::{self, Display},
 };
 
-use clap::{App, Arg, ArgMatches};
+use clap::{App, AppSettings, Arg, ArgMatches};
 use thiserror::Error;
 
 mod parser;
@@ -67,6 +67,7 @@ impl<'a> Script<'a> {
         args: impl IntoIterator<Item = String>,
     ) -> (String, Vec<String>) {
         let mut name_to_args = HashMap::new();
+        app = app.setting(AppSettings::SubcommandRequiredElseHelp);
 
         for item in &self.items {
             let name = item.fn_signature.name;
