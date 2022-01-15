@@ -1,4 +1,7 @@
-use std::fmt::{self, Display};
+use std::{
+    collections::HashMap,
+    fmt::{self, Display},
+};
 
 use clap::{App, Arg};
 use thiserror::Error;
@@ -15,22 +18,70 @@ impl<'a> Script<'a> {
         parser::parse(input)
     }
 
-    pub fn arg_parser(&self, exe_name: &str) -> App {
+    // TODO: Error type for return?
+    pub fn parse_args(
+        &self,
+        exe_name: &str,
+        args: impl IntoIterator<Item = String>,
+    ) -> Result<(String, Vec<String>), String> {
         let mut app = App::new(exe_name);
+        let mut name_to_args = HashMap::new();
+
+        let mut main_is_pub = None;
 
         for item in &self.items {
-            if item.is_pub {
-                let mut subcmd = App::new(item.fn_signature.name);
+            let name = item.fn_signature.name;
 
-                for arg in &item.fn_signature.args {
-                    subcmd = subcmd.arg(Arg::new(*arg));
+            if item.is_pub {
+                let mut subcmd = App::new(name);
+                let mut arg_names = Vec::new();
+
+                for &arg in &item.fn_signature.args {
+                    subcmd = subcmd.arg(Arg::new(arg));
+                    arg_names.push(arg);
+                }
+
+                let name_exists = name_to_args.insert(name, arg_names).is_some();
+
+                if name_exists {
+                    return Err(format!("Duplicate function name {}", name));
                 }
 
                 app = app.subcommand(subcmd);
             }
+
+            (name == "main").then(|| main_is_pub = Some(item.is_pub));
         }
 
-        app
+        extract_args(app, args, name_to_args)
+    }
+}
+
+fn extract_args(
+    app: App,
+    args: impl IntoIterator<Item = String>,
+    mut name_to_args: HashMap<&str, Vec<&str>>,
+) -> Result<(String, Vec<String>), String> {
+    let arg_matches = app.get_matches_from(args);
+    
+    match arg_matches.subcommand() {
+        Some((name, subcmd_matches)) => {
+            let arg_values = name_to_args
+                .remove(name)
+                .unwrap()
+                .into_iter()
+                .map(|arg_name| {
+                    let mut values = subcmd_matches.values_of(arg_name).unwrap();
+                    let value = values.next().unwrap();
+                    assert!(values.next().is_none());
+
+                    value.to_owned()
+                })
+                .collect();
+
+            Ok((name.to_owned(), arg_values))
+        }
+        None => todo!(),
     }
 }
 

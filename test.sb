@@ -2,7 +2,7 @@ pub inline fn test1() {
     echo Hello from test1
 }
 
-fn test2(
+pub fn test2(
     x, 
     y, 
     z
