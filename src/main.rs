@@ -18,7 +18,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .ok_or(format!("Usage: {} [SCRIPT_FILE]", exe_name))?;
     let input = fs::read_to_string(&script_file)?;
     let items = Script::parse(&input)?;
-    let (function, args) = items.parse_args(&exe_name, env::args().skip(1))?;
+    let (function, args) = items.parse_args(&exe_name, env::args().skip(1));
 
     let script = format!("{}\n\nset -euo pipefail\n\n{} \"$@\"", items, function);
 

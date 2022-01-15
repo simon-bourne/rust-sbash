@@ -1,9 +1,9 @@
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{self, Display},
 };
 
-use clap::{App, Arg};
+use clap::{App, Arg, ArgMatches};
 use thiserror::Error;
 
 mod parser;
@@ -15,19 +15,26 @@ pub struct Script<'a> {
 
 impl<'a> Script<'a> {
     pub fn parse(input: &'a str) -> Result<Self, ParseError> {
-        parser::parse(input)
+        // TODO: Split main out into enum with etiher Main or
+        // Items
+        // TODO: ... in function sigs to allow "$@"
+        let items = parser::parse(input)?;
+        let mut names = HashSet::new();
+
+        for item in &items {
+            assert!(names.insert(item.fn_signature.name));
+        }
+
+        Ok(Self { items })
     }
 
-    // TODO: Error type for return?
     pub fn parse_args(
         &self,
         exe_name: &str,
         args: impl IntoIterator<Item = String>,
-    ) -> Result<(String, Vec<String>), String> {
+    ) -> (String, Vec<String>) {
         let mut app = App::new(exe_name);
         let mut name_to_args = HashMap::new();
-
-        let mut main_is_pub = None;
 
         for item in &self.items {
             let name = item.fn_signature.name;
@@ -37,52 +44,40 @@ impl<'a> Script<'a> {
                 let mut arg_names = Vec::new();
 
                 for &arg in &item.fn_signature.args {
-                    subcmd = subcmd.arg(Arg::new(arg));
+                    subcmd = subcmd.arg(Arg::new(arg).required(true));
                     arg_names.push(arg);
                 }
 
-                let name_exists = name_to_args.insert(name, arg_names).is_some();
-
-                if name_exists {
-                    return Err(format!("Duplicate function name {}", name));
-                }
-
+                name_to_args.insert(name, arg_names);
                 app = app.subcommand(subcmd);
             }
-
-            (name == "main").then(|| main_is_pub = Some(item.is_pub));
         }
 
-        extract_args(app, args, name_to_args)
+        let arg_matches = app.get_matches_from(args);
+        let (name, subcmd_matches) = arg_matches.subcommand().unwrap();
+        extract_args(name, subcmd_matches, name_to_args)
     }
 }
 
 fn extract_args(
-    app: App,
-    args: impl IntoIterator<Item = String>,
+    name: &str,
+    arg_matches: &ArgMatches,
     mut name_to_args: HashMap<&str, Vec<&str>>,
-) -> Result<(String, Vec<String>), String> {
-    let arg_matches = app.get_matches_from(args);
+) -> (String, Vec<String>) {
+    let arg_values = name_to_args
+        .remove(name)
+        .unwrap()
+        .into_iter()
+        .map(|arg_name| {
+            let mut values = arg_matches.values_of(arg_name).unwrap();
+            let value = values.next().unwrap();
+            assert!(values.next().is_none());
 
-    match arg_matches.subcommand() {
-        Some((name, subcmd_matches)) => {
-            let arg_values = name_to_args
-                .remove(name)
-                .unwrap()
-                .into_iter()
-                .map(|arg_name| {
-                    let mut values = subcmd_matches.values_of(arg_name).unwrap();
-                    let value = values.next().unwrap();
-                    assert!(values.next().is_none());
+            value.to_owned()
+        })
+        .collect();
 
-                    value.to_owned()
-                })
-                .collect();
-
-            Ok((name.to_owned(), arg_values))
-        }
-        None => todo!(),
-    }
+    (name.to_owned(), arg_values)
 }
 
 impl<'a> Display for Script<'a> {

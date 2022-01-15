@@ -13,9 +13,9 @@ use nom::{
 use nom_greedyerror::{convert_error, GreedyError};
 use nom_locate::LocatedSpan;
 
-use crate::{FnSignature, Item, ParseError, Script};
+use crate::{FnSignature, Item, ParseError};
 
-pub fn parse(input: &str) -> Result<Script, ParseError> {
+pub fn parse(input: &str) -> Result<Vec<Item>, ParseError> {
     let input_span = Span::new(input);
 
     let (_, items) = match script(input_span).finish() {
@@ -26,9 +26,9 @@ pub fn parse(input: &str) -> Result<Script, ParseError> {
     Ok(items)
 }
 
-fn script(input: Span) -> ParseResult<Script> {
+fn script(input: Span) -> ParseResult<Vec<Item>> {
     let (input, (items, _eof)) = many_till(ws(item), eof)(input)?;
-    Ok((input, Script { items }))
+    Ok((input, items))
 }
 
 fn item(input: Span) -> ParseResult<Item> {
