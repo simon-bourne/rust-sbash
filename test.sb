@@ -6,8 +6,10 @@ pub inline fn test1() {#
 
 #> A description of test2
 pub fn test2(
+    #> This is what x is for
     x, 
     y, 
+    #> This is what z is for
     z
 ) {# 
     echo "$x, $y, $z"

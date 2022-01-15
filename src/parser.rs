@@ -10,13 +10,13 @@ use nom::{
     combinator::{eof, map, opt, peek, recognize},
     error::{context, ErrorKind},
     multi::{many0, many1, many_till, separated_list0},
-    sequence::{delimited, pair, tuple},
+    sequence::{delimited, pair, tuple, preceded},
     Finish, IResult,
 };
 use nom_greedyerror::{convert_error, GreedyError};
 use nom_locate::LocatedSpan;
 
-use crate::{FnSignature, Item, ParseError};
+use crate::{FnSignature, Item, ItemArg, ParseError};
 
 pub fn parse(input: &str) -> Result<Vec<Item>, ParseError> {
     let input_span = Span::new(input);
@@ -72,13 +72,25 @@ fn fn_signature(input: Span) -> ParseResult<FnSignature> {
             text(identifier),
             ws(delimited(
                 tag("("),
-                separated_list0(tag(","), ws(text(identifier))),
+                separated_list0(tag(","), ws(arg)),
                 tag(")"),
             )),
         ),
     )(input)?;
 
     Ok((input, FnSignature { name, args }))
+}
+
+fn arg(input: Span) -> ParseResult<ItemArg> {
+    let (s, (doc, name)) = pair(doc_comment('>'), text(identifier))(input)?;
+
+    Ok((
+        s,
+        ItemArg {
+            description: doc.map(|s| *s.fragment()),
+            name,
+        },
+    ))
 }
 
 fn body(input: Span) -> ParseResult<Span> {
@@ -141,10 +153,10 @@ fn line_comment(input: Span) -> ParseResult<Span> {
 }
 
 fn doc_comment<'a>(prefix: char) -> impl FnMut(Span<'a>) -> ParseResult<'a, Option<Span<'a>>> {
-    // TODO: Trim and combine many doc comments
+    // TODO: Combine many doc comments
     opt(ws(delimited(
         pair(char('#'), char(prefix)),
-        not_line_ending,
+        preceded(space0, not_line_ending),
         alt((eof, line_ending)),
     )))
 }

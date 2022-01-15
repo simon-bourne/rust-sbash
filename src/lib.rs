@@ -75,10 +75,8 @@ impl<'a> Script<'a> {
             if item.is_pub {
                 let mut subcmd_app = App::new(name);
 
-                if let Some(desc) = item.description {
-                    subcmd_app = subcmd_app.about(desc);
-                }
-        
+                subcmd_app = subcmd_app.about(item.description);
+
                 let (subcmd, arg_names) = item_arg_spec(subcmd_app, item);
 
                 name_to_args.insert(name, arg_names);
@@ -117,22 +115,26 @@ impl<'a> Script<'a> {
     }
 }
 
-fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>) {
+fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<ItemArg<'a>>) {
     let mut arg_names = Vec::new();
 
-    for &arg_name in &item.fn_signature.args {
-        app = app.arg(Arg::new(arg_name).required(true).multiple_values(false));
-        arg_names.push(arg_name);
+    for &item_arg in &item.fn_signature.args {
+        let mut arg = Arg::new(item_arg.name)
+            .required(true)
+            .multiple_values(false);
+        arg = arg.help(item_arg.description);
+        app = app.arg(arg);
+        arg_names.push(item_arg);
     }
 
     (app, arg_names)
 }
 
-fn extract_args(arg_matches: &ArgMatches, arg_names: Vec<&str>) -> Vec<String> {
-    arg_names
+fn extract_args(arg_matches: &ArgMatches, item_args: Vec<ItemArg>) -> Vec<String> {
+    item_args
         .into_iter()
-        .map(|arg_name| {
-            let mut values = arg_matches.values_of(arg_name).unwrap();
+        .map(|item_arg| {
+            let mut values = arg_matches.values_of(item_arg.name).unwrap();
             let value = values.next().unwrap();
             assert!(values.next().is_none());
 
@@ -204,9 +206,9 @@ impl<'a> Item<'a> {
 }
 
 #[derive(Debug)]
-pub struct FnSignature<'a> {
+struct FnSignature<'a> {
     name: &'a str,
-    args: Vec<&'a str>,
+    args: Vec<ItemArg<'a>>,
 }
 
 impl<'a> FnSignature<'a> {
@@ -214,9 +216,15 @@ impl<'a> FnSignature<'a> {
         let mut arg_str = String::new();
 
         for arg in &self.args {
-            arg_str.push_str(&format!("{}=\"$1\"; shift; ", arg));
+            arg_str.push_str(&format!("{}=\"$1\"; shift; ", arg.name));
         }
 
         arg_str
     }
+}
+
+#[derive(Debug, Copy, Clone)]
+struct ItemArg<'a> {
+    name: &'a str,
+    description: Option<&'a str>,
 }
