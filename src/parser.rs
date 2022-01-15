@@ -182,7 +182,6 @@ fn line_comment(input: Span) -> ParseResult<Span> {
 }
 
 fn doc_comment<'a>(prefix: char) -> impl FnMut(Span<'a>) -> ParseResult<'a, Vec<Span<'a>>> {
-    // TODO: Combine many doc comments
     many0(ws(delimited(
         pair(char('#'), char(prefix)),
         preceded(space0, not_line_ending),
