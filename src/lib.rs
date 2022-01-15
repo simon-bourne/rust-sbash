@@ -4,6 +4,8 @@ use std::{
 };
 
 use clap::{App, AppSettings, Arg, ArgMatches};
+use itertools::Itertools;
+use parser::Span;
 use thiserror::Error;
 
 mod parser;
@@ -75,7 +77,7 @@ impl<'a> Script<'a> {
             if item.is_pub {
                 let mut subcmd_app = App::new(name);
 
-                subcmd_app = subcmd_app.about(item.description);
+                subcmd_app = subcmd_app.about(&item.description);
 
                 let (subcmd, arg_names) = item_arg_spec(subcmd_app, item);
 
@@ -102,9 +104,7 @@ impl<'a> Script<'a> {
         let item = &self.items[main_index];
         let (mut app, arg_names) = item_arg_spec(app, item);
 
-        if let Some(desc) = item.description {
-            app = app.about(desc);
-        }
+        app = app.about(&item.description);
 
         let arg_matches = app.get_matches_from(args);
 
@@ -115,26 +115,26 @@ impl<'a> Script<'a> {
     }
 }
 
-fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<ItemArg<'a>>) {
+fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>) {
     let mut arg_names = Vec::new();
 
-    for &item_arg in &item.fn_signature.args {
+    for item_arg in &item.fn_signature.args {
         let mut arg = Arg::new(item_arg.name)
             .required(true)
             .multiple_values(false);
-        arg = arg.help(item_arg.description);
+        arg = arg.help(&item_arg.description);
         app = app.arg(arg);
-        arg_names.push(item_arg);
+        arg_names.push(item_arg.name);
     }
 
     (app, arg_names)
 }
 
-fn extract_args(arg_matches: &ArgMatches, item_args: Vec<ItemArg>) -> Vec<String> {
+fn extract_args(arg_matches: &ArgMatches, item_args: Vec<&str>) -> Vec<String> {
     item_args
         .into_iter()
         .map(|item_arg| {
-            let mut values = arg_matches.values_of(item_arg.name).unwrap();
+            let mut values = arg_matches.values_of(item_arg).unwrap();
             let value = values.next().unwrap();
             assert!(values.next().is_none());
 
@@ -165,7 +165,7 @@ fn count_newlines(s: &str) -> usize {
 
 #[derive(Debug)]
 pub struct Item<'a> {
-    description: Option<&'a str>,
+    description: Description,
     is_pub: bool,
     is_inline: bool,
     fn_signature: FnSignature<'a>,
@@ -223,8 +223,23 @@ impl<'a> FnSignature<'a> {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug)]
 struct ItemArg<'a> {
     name: &'a str,
-    description: Option<&'a str>,
+    description: Description,
+}
+
+#[derive(Debug)]
+struct Description(String);
+
+impl Description {
+    fn new(description: &[Span]) -> Self {
+        Self(description.iter().map(|s| s.fragment().trim()).join(" "))
+    }
+}
+
+impl<'a> From<&'a Description> for Option<&'a str> {
+    fn from(desc: &'a Description) -> Self {
+        (!desc.0.is_empty()).then(|| desc.0.as_str())
+    }
 }

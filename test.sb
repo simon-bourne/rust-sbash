@@ -1,10 +1,11 @@
 #> A description of test1
+#> that goes onto multiple lines
+#> and goes on and on and on and on and on and on and on and on and on
 # test
 pub inline fn test1() {#
     echo Hello from test1
 }
 
-#> A description of test2
 pub fn test2(
     #> This is what x is for
     x, 

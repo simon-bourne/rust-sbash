@@ -16,7 +16,7 @@ use nom::{
 use nom_greedyerror::{convert_error, GreedyError};
 use nom_locate::LocatedSpan;
 
-use crate::{FnSignature, Item, ItemArg, ParseError};
+use crate::{FnSignature, Item, ItemArg, ParseError, Description};
 
 pub fn parse(input: &str) -> Result<Vec<Item>, ParseError> {
     let input_span = Span::new(input);
@@ -55,7 +55,7 @@ fn item(input: Span) -> ParseResult<Item> {
     Ok((
         input,
         Item {
-            description: description.map(|s| *s.fragment()),
+            description: Description::new(&description),
             is_pub: is_pub.is_some(),
             is_inline: is_inline.is_some(),
             fn_signature,
@@ -87,7 +87,7 @@ fn arg(input: Span) -> ParseResult<ItemArg> {
     Ok((
         s,
         ItemArg {
-            description: doc.map(|s| *s.fragment()),
+            description: Description::new(&doc),
             name,
         },
     ))
@@ -124,7 +124,7 @@ fn text<'a>(
     map(parser, |s| *s.fragment())
 }
 
-type Span<'a> = LocatedSpan<&'a str>;
+pub type Span<'a> = LocatedSpan<&'a str>;
 
 type ParseResult<'a, T> = IResult<Span<'a>, T, GreedyError<Span<'a>, ErrorKind>>;
 
@@ -152,9 +152,9 @@ fn line_comment(input: Span) -> ParseResult<Span> {
     )))(input)
 }
 
-fn doc_comment<'a>(prefix: char) -> impl FnMut(Span<'a>) -> ParseResult<'a, Option<Span<'a>>> {
+fn doc_comment<'a>(prefix: char) -> impl FnMut(Span<'a>) -> ParseResult<'a, Vec<Span<'a>>> {
     // TODO: Combine many doc comments
-    opt(ws(delimited(
+    many0(ws(delimited(
         pair(char('#'), char(prefix)),
         preceded(space0, not_line_ending),
         alt((eof, line_ending)),
