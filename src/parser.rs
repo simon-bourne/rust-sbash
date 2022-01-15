@@ -2,11 +2,11 @@ use nom::{
     branch::alt,
     bytes::complete::tag,
     character::complete::{
-        alpha1, alphanumeric1, line_ending, multispace0, not_line_ending, space0,
+        alpha1, alphanumeric1, line_ending, multispace1, not_line_ending, space0,
     },
     combinator::{eof, map, opt, recognize},
     error::{context, ErrorKind},
-    multi::{many0, many_till, separated_list0},
+    multi::{many0, many1, many_till, separated_list0},
     sequence::{delimited, pair, separated_pair, tuple},
     Finish, IResult,
 };
@@ -40,7 +40,7 @@ fn item(input: Span) -> ParseResult<Item> {
             tuple((
                 fn_signature,
                 ws(delimited(
-                    tuple((tag("{"), space0, line_ending)),
+                    tuple((tag("{"), space0, opt(line_comment), many1(line_ending))),
                     body,
                     tag("}"),
                 )),
@@ -115,5 +115,18 @@ fn ws<'a, F: 'a, O>(inner: F) -> impl FnMut(Span<'a>) -> ParseResult<'a, O>
 where
     F: FnMut(Span<'a>) -> ParseResult<'a, O>,
 {
-    delimited(multispace0, inner, multispace0)
+    delimited(ws_or_comments, inner, ws_or_comments)
+}
+
+fn ws_or_comments(input: Span) -> ParseResult<()> {
+    let (s, _) = many0(alt((
+        multispace1,
+        recognize(tuple((line_comment, alt((line_ending, eof))))),
+    )))(input)?;
+
+    Ok((s, ()))
+}
+
+fn line_comment(input: Span) -> ParseResult<Span> {
+    recognize(tuple((tag("#"), not_line_ending)))(input)
 }
