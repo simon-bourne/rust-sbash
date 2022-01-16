@@ -25,7 +25,6 @@ fn run() -> Result<(), Box<dyn Error>> {
 
     // TODO: Make `parse_args` return an enum with either debug or fn_call, and `println!("{}", items);
     // TODO: Rename `debug` to `show-bash`
-    // TODO: Remove `main` being only public fn case.
     if fn_call.debug {
         println!("{}", script);
         return Ok(());
