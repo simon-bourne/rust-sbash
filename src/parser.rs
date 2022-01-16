@@ -167,7 +167,7 @@ fn identifier(input: Span) -> ParseResult<Span> {
         "identifier",
         recognize(pair(
             alt((alpha1, tag("_"))),
-            many0(alt((alphanumeric1, tag("_")))),
+            many0(alt((alphanumeric1, tag("_"), tag("-")))),
         )),
     )(input)
 }
