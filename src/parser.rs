@@ -62,7 +62,7 @@ fn item(input: Span) -> ParseResult<Item> {
     Ok((
         input,
         Item {
-            description: Description::new(&pre_description, &post_description),
+            description: Description::new([&pre_description, &post_description]),
             is_pub: is_pub.is_some(),
             is_inline: is_inline.is_some(),
             fn_signature,
@@ -118,7 +118,7 @@ fn item_arg<'a>(
     Ok((
         s,
         ItemArg {
-            description: Description::new(pre_description, post_description),
+            description: Description::new([pre_description, post_description]),
             name,
         },
     ))

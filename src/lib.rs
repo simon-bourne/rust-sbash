@@ -5,7 +5,6 @@ use std::{
 };
 
 use clap::{App, Arg, ArgMatches};
-use itertools::Itertools;
 use parser::Span;
 use thiserror::Error;
 
@@ -52,9 +51,10 @@ impl<'a> Script<'a> {
             let name = item.fn_signature.name;
 
             if item.is_pub {
-                let mut subcmd_app = App::new(name);
-
-                subcmd_app = subcmd_app.about(&item.description);
+                let description = &item.description;
+                let subcmd_app = App::new(name)
+                    .about(description.short.as_str())
+                    .long_about(description.long.as_str());
 
                 let (subcmd, arg_names) = item_arg_spec(subcmd_app, item);
 
@@ -100,10 +100,12 @@ fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>
     let mut arg_names = Vec::new();
 
     for item_arg in &item.fn_signature.args {
-        let mut arg = Arg::new(item_arg.name)
+        let description = &item_arg.description;
+        let arg = Arg::new(item_arg.name)
             .required(true)
-            .multiple_values(false);
-        arg = arg.help(&item_arg.description);
+            .multiple_values(false)
+            .help(description.short.as_str())
+            .long_help(description.long.as_str());
         app = app.arg(arg);
         arg_names.push(item_arg.name);
     }
@@ -211,25 +213,33 @@ struct ItemArg<'a> {
 }
 
 #[derive(Debug)]
-struct Description(String);
-
-impl Description {
-    fn new<'a>(
-        pre_description: impl IntoIterator<Item = &'a Span<'a>>,
-        post_description: impl IntoIterator<Item = &'a Span<'a>>,
-    ) -> Self {
-        Self(
-            pre_description
-                .into_iter()
-                .chain(post_description.into_iter())
-                .map(|s| s.fragment().trim())
-                .join(" "),
-        )
-    }
+struct Description {
+    short: String,
+    long: String,
 }
 
-impl<'a> From<&'a Description> for Option<&'a str> {
-    fn from(desc: &'a Description) -> Self {
-        (!desc.0.is_empty()).then(|| desc.0.as_str())
+impl Description {
+    fn new<'a, const LEN: usize>(
+        description: [impl IntoIterator<Item = &'a Span<'a>>; LEN],
+    ) -> Self {
+        let paragraphs: Vec<String> = description
+            .into_iter()
+            .map(|lines| {
+                let lines: Vec<&str> = lines.into_iter().map(|s| s.fragment().trim()).collect();
+
+                lines
+                    .split(|line| line.is_empty())
+                    .map(|paragraph| paragraph.join(" "))
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect();
+
+        let long = paragraphs.join("\n\n");
+
+        Self {
+            short: paragraphs.into_iter().next().unwrap_or_default(),
+            long,
+        }
     }
 }
