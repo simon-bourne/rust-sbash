@@ -18,16 +18,18 @@ fn run() -> Result<(), Box<dyn Error>> {
         .ok_or(format!("Usage: {} [SCRIPT_FILE]", exe_name))?;
     let input = fs::read_to_string(&script_file)?;
     let items = Script::parse(&input)?;
-    let (function, args) = items.parse_args(&exe_name, env::args().skip(1));
+    let fn_call = items.parse_args(&exe_name, env::args().skip(1));
+    let script = format!("{}\n\nset -euo pipefail\n\n{} \"$@\"", items, fn_call.name);
 
-    let script = format!("{}\n\nset -euo pipefail\n\n{} \"$@\"", items, function);
-
-    println!("{}", script);
+    if fn_call.debug {
+        println!("{}", script);
+        return Ok(());
+    }
 
     // TODO: Can we make a temporary file for the script so bash can read stdin?
     let mut child = Command::new("bash")
         .arg0(script_file)
-        .args(iter::once("-s".to_owned()).chain(args))
+        .args(iter::once("-s".to_owned()).chain(fn_call.args))
         .stdin(Stdio::piped())
         .spawn()?;
 

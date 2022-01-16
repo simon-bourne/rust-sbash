@@ -49,12 +49,8 @@ impl<'a> Script<'a> {
         })
     }
 
-    pub fn parse_args(
-        &self,
-        exe_name: &str,
-        args: impl IntoIterator<Item = String>,
-    ) -> (String, Vec<String>) {
-        let app = App::new(exe_name);
+    pub fn parse_args(&self, exe_name: &str, args: impl IntoIterator<Item = String>) -> FnCall {
+        let app = App::new(exe_name).arg(Arg::new(DEBUG_FLAG).long(DEBUG_FLAG).takes_value(false));
 
         if let Some(main_index) = self.only_pub_main_index {
             self.single_item_args(main_index, app, args)
@@ -63,11 +59,7 @@ impl<'a> Script<'a> {
         }
     }
 
-    fn subcmd_args(
-        &'a self,
-        mut app: App<'a>,
-        args: impl IntoIterator<Item = String>,
-    ) -> (String, Vec<String>) {
+    fn subcmd_args(&'a self, mut app: App<'a>, args: impl IntoIterator<Item = String>) -> FnCall {
         let mut name_to_args = HashMap::new();
         app = app.setting(AppSettings::SubcommandRequiredElseHelp);
 
@@ -89,9 +81,11 @@ impl<'a> Script<'a> {
         let arg_matches = app.get_matches_from(args);
         let (name, subcmd_matches) = arg_matches.subcommand().unwrap();
 
-        (
-            name.to_owned(),
-            extract_args(subcmd_matches, name_to_args.remove(name).unwrap()),
+        FnCall::new(
+            name,
+            &arg_matches,
+            subcmd_matches,
+            name_to_args.remove(name).unwrap(),
         )
     }
 
@@ -100,7 +94,7 @@ impl<'a> Script<'a> {
         main_index: usize,
         app: App<'a>,
         args: impl IntoIterator<Item = String>,
-    ) -> (String, Vec<String>) {
+    ) -> FnCall {
         let item = &self.items[main_index];
         let (mut app, arg_names) = item_arg_spec(app, item);
 
@@ -108,10 +102,35 @@ impl<'a> Script<'a> {
 
         let arg_matches = app.get_matches_from(args);
 
-        (
-            item.fn_signature.name.to_owned(),
-            extract_args(&arg_matches, arg_names),
+        FnCall::new(
+            item.fn_signature.name,
+            &arg_matches,
+            &arg_matches,
+            arg_names,
         )
+    }
+}
+
+const DEBUG_FLAG: &str = "debug";
+
+pub struct FnCall {
+    pub name: String,
+    pub args: Vec<String>,
+    pub debug: bool,
+}
+
+impl FnCall {
+    fn new(
+        name: &str,
+        arg_matches: &ArgMatches,
+        subcmd_matches: &ArgMatches,
+        arg_names: Vec<&str>,
+    ) -> Self {
+        Self {
+            name: name.to_owned(),
+            args: extract_args(subcmd_matches, arg_names),
+            debug: arg_matches.is_present(DEBUG_FLAG),
+        }
     }
 }
 
