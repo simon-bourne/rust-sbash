@@ -5,19 +5,20 @@ use std::{
 };
 
 use clap::{App, Arg, ArgMatches};
-use parser::Span;
+use parser::Description;
 use thiserror::Error;
 
 mod parser;
 
 #[derive(Debug)]
 pub struct Script<'a> {
+    description: Description,
     items: Vec<Item<'a>>,
 }
 
 impl<'a> Script<'a> {
     pub fn parse(input: &'a str) -> Result<Self, ParseError> {
-        let items = parser::parse(input)?;
+        let (description, items) = parser::parse(input)?;
         let mut names = HashSet::new();
 
         for item in &items {
@@ -26,11 +27,13 @@ impl<'a> Script<'a> {
             assert!(names.insert(name));
         }
 
-        Ok(Self { items })
+        Ok(Self { description, items })
     }
 
     pub fn parse_args(&self, exe_name: &str, args: impl IntoIterator<Item = String>) -> Action {
         let app = App::new(exe_name)
+            .about(self.description.short())
+            .long_about(self.description.long())
             .arg(
                 Arg::new(SHOW_SCRIPT_FLAG)
                     .long(SHOW_SCRIPT_FLAG)
@@ -53,8 +56,8 @@ impl<'a> Script<'a> {
             if item.is_pub {
                 let description = &item.description;
                 let subcmd_app = App::new(name)
-                    .about(description.short.as_str())
-                    .long_about(description.long.as_str());
+                    .about(description.short())
+                    .long_about(description.long());
 
                 let (subcmd, arg_names) = item_arg_spec(subcmd_app, item);
 
@@ -104,8 +107,8 @@ fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>
         let arg = Arg::new(item_arg.name)
             .required(true)
             .multiple_values(false)
-            .help(description.short.as_str())
-            .long_help(description.long.as_str());
+            .help(description.short())
+            .long_help(description.long());
         app = app.arg(arg);
         arg_names.push(item_arg.name);
     }
@@ -210,36 +213,4 @@ impl<'a> FnSignature<'a> {
 struct ItemArg<'a> {
     name: &'a str,
     description: Description,
-}
-
-#[derive(Debug)]
-struct Description {
-    short: String,
-    long: String,
-}
-
-impl Description {
-    fn new<'a, const LEN: usize>(
-        description: [impl IntoIterator<Item = &'a Span<'a>>; LEN],
-    ) -> Self {
-        let paragraphs: Vec<String> = description
-            .into_iter()
-            .map(|lines| {
-                let lines: Vec<&str> = lines.into_iter().map(|s| s.fragment().trim()).collect();
-
-                lines
-                    .split(|line| line.is_empty())
-                    .map(|paragraph| paragraph.join(" "))
-                    .collect::<Vec<_>>()
-            })
-            .flatten()
-            .collect();
-
-        let long = paragraphs.join("\n\n");
-
-        Self {
-            short: paragraphs.into_iter().next().unwrap_or_default(),
-            long,
-        }
-    }
 }

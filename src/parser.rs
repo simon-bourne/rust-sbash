@@ -16,25 +16,26 @@ use nom::{
 use nom_greedyerror::{convert_error, GreedyError};
 use nom_locate::LocatedSpan;
 
-use crate::{Description, FnSignature, Item, ItemArg, ParseError};
+use crate::{FnSignature, Item, ItemArg, ParseError};
 
-pub fn parse(input: &str) -> Result<Vec<Item>, ParseError> {
+pub fn parse(input: &str) -> Result<(Description, Vec<Item>), ParseError> {
     // TODO: Parse doc comments (#^) for script and add them to about for main
     // command or join them to `main` function (in the case of a single pub main)
     // TODO: Add more contexts to parser
     let input_span = Span::new(input);
 
-    let (_, items) = match script(input_span).finish() {
+    let (_, script) = match script(input_span).finish() {
         Ok(ok) => Ok(ok),
         Err(e) => Err(ParseError(convert_error(input, e))),
     }?;
 
-    Ok(items)
+    Ok(script)
 }
 
-fn script(input: Span) -> ParseResult<Vec<Item>> {
-    let (input, (items, _eof)) = many_till(ws(item), eof)(input)?;
-    Ok((input, items))
+fn script(input: Span) -> ParseResult<(Description, Vec<Item>)> {
+    let (input, (script_docs, (items, _eof))) =
+        pair(doc_comment('^'), many_till(ws(item), eof))(input)?;
+    Ok((input, (Description::new([&script_docs]), items)))
 }
 
 fn item(input: Span) -> ParseResult<Item> {
@@ -155,7 +156,7 @@ fn text<'a>(
     map(parser, |s| *s.fragment())
 }
 
-pub type Span<'a> = LocatedSpan<&'a str>;
+type Span<'a> = LocatedSpan<&'a str>;
 
 type ParseResult<'a, T> = IResult<Span<'a>, T, GreedyError<Span<'a>, ErrorKind>>;
 
@@ -189,4 +190,44 @@ fn doc_comment<'a>(prefix: char) -> impl FnMut(Span<'a>) -> ParseResult<'a, Vec<
         preceded(space0, not_line_ending),
         alt((eof, line_ending)),
     )))
+}
+
+#[derive(Debug)]
+pub struct Description {
+    short: String,
+    long: String,
+}
+
+impl Description {
+    pub fn new<'a, const LEN: usize>(
+        description: [impl IntoIterator<Item = &'a Span<'a>>; LEN],
+    ) -> Self {
+        let paragraphs: Vec<String> = description
+            .into_iter()
+            .map(|lines| {
+                let lines: Vec<&str> = lines.into_iter().map(|s| s.fragment().trim()).collect();
+
+                lines
+                    .split(|line| line.is_empty())
+                    .map(|paragraph| paragraph.join(" "))
+                    .collect::<Vec<_>>()
+            })
+            .flatten()
+            .collect();
+
+        let long = paragraphs.join("\n\n");
+
+        Self {
+            short: paragraphs.into_iter().next().unwrap_or_default(),
+            long,
+        }
+    }
+
+    pub fn short(&self) -> &str {
+        &self.short
+    }
+
+    pub fn long(&self) -> &str {
+        &self.long
+    }
 }
