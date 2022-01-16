@@ -13,53 +13,26 @@ mod parser;
 #[derive(Debug)]
 pub struct Script<'a> {
     items: Vec<Item<'a>>,
-    only_pub_main_index: Option<usize>,
 }
 
 impl<'a> Script<'a> {
     pub fn parse(input: &'a str) -> Result<Self, ParseError> {
         let items = parser::parse(input)?;
         let mut names = HashSet::new();
-        let mut only_pub_main_index = None;
-        let mut pub_count = 0;
 
-        for (index, item) in items.iter().enumerate() {
+        for item in &items {
             let name = item.fn_signature.name;
 
             assert!(names.insert(name));
-
-            let is_pub = item.is_pub;
-
-            if is_pub {
-                pub_count += 1;
-            }
-
-            if is_pub && name == "main" {
-                only_pub_main_index = Some(index);
-            }
         }
 
-        if pub_count != 1 {
-            only_pub_main_index = None;
-        }
-
-        Ok(Self {
-            items,
-            only_pub_main_index,
-        })
+        Ok(Self { items })
     }
 
     pub fn parse_args(&self, exe_name: &str, args: impl IntoIterator<Item = String>) -> FnCall {
         let app = App::new(exe_name).arg(Arg::new(DEBUG_FLAG).long(DEBUG_FLAG).takes_value(false));
 
-        if let Some(main_index) = self.only_pub_main_index {
-            self.single_item_args(main_index, app, args)
-        } else {
-            self.subcmd_args(app, args)
-        }
-    }
-
-    fn subcmd_args(&'a self, mut app: App<'a>, args: impl IntoIterator<Item = String>) -> FnCall {
+        let mut app = app;
         let mut name_to_args = HashMap::new();
         app = app.setting(AppSettings::SubcommandRequiredElseHelp);
 
@@ -80,34 +53,13 @@ impl<'a> Script<'a> {
 
         let arg_matches = app.get_matches_from(args);
         let (name, subcmd_matches) = arg_matches.subcommand().unwrap();
+        let arg_names = name_to_args.remove(name).unwrap();
 
-        FnCall::new(
-            name,
-            &arg_matches,
-            subcmd_matches,
-            name_to_args.remove(name).unwrap(),
-        )
-    }
-
-    fn single_item_args(
-        &'a self,
-        main_index: usize,
-        app: App<'a>,
-        args: impl IntoIterator<Item = String>,
-    ) -> FnCall {
-        let item = &self.items[main_index];
-        let (mut app, arg_names) = item_arg_spec(app, item);
-
-        app = app.about(&item.description);
-
-        let arg_matches = app.get_matches_from(args);
-
-        FnCall::new(
-            item.fn_signature.name,
-            &arg_matches,
-            &arg_matches,
-            arg_names,
-        )
+        FnCall {
+            name: name.to_owned(),
+            args: extract_args(subcmd_matches, arg_names),
+            debug: arg_matches.is_present(DEBUG_FLAG),
+        }
     }
 }
 
@@ -117,21 +69,6 @@ pub struct FnCall {
     pub name: String,
     pub args: Vec<String>,
     pub debug: bool,
-}
-
-impl FnCall {
-    fn new(
-        name: &str,
-        arg_matches: &ArgMatches,
-        subcmd_matches: &ArgMatches,
-        arg_names: Vec<&str>,
-    ) -> Self {
-        Self {
-            name: name.to_owned(),
-            args: extract_args(subcmd_matches, arg_names),
-            debug: arg_matches.is_present(DEBUG_FLAG),
-        }
-    }
 }
 
 fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>) {
