@@ -1,9 +1,10 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{self, Display},
+    process,
 };
 
-use clap::{App, AppSettings, Arg, ArgMatches};
+use clap::{App, Arg, ArgMatches};
 use itertools::Itertools;
 use parser::Span;
 use thiserror::Error;
@@ -29,12 +30,16 @@ impl<'a> Script<'a> {
         Ok(Self { items })
     }
 
-    pub fn parse_args(&self, exe_name: &str, args: impl IntoIterator<Item = String>) -> FnCall {
-        let app = App::new(exe_name).arg(Arg::new(DEBUG_FLAG).long(DEBUG_FLAG).takes_value(false));
+    pub fn parse_args(&self, exe_name: &str, args: impl IntoIterator<Item = String>) -> Action {
+        let app = App::new(exe_name).arg(
+            Arg::new(SHOW_SCRIPT_FLAG)
+                .long(SHOW_SCRIPT_FLAG)
+                .takes_value(false)
+                .help("Show the generated bash script (without code to call the function)"),
+        );
 
         let mut app = app;
         let mut name_to_args = HashMap::new();
-        app = app.setting(AppSettings::SubcommandRequiredElseHelp);
 
         for item in &self.items {
             let name = item.fn_signature.name;
@@ -51,24 +56,31 @@ impl<'a> Script<'a> {
             }
         }
 
-        let arg_matches = app.get_matches_from(args);
-        let (name, subcmd_matches) = arg_matches.subcommand().unwrap();
-        let arg_names = name_to_args.remove(name).unwrap();
+        let arg_matches = app
+            .try_get_matches_from_mut(args)
+            .unwrap_or_else(|e| e.exit());
 
-        FnCall {
-            name: name.to_owned(),
-            args: extract_args(subcmd_matches, arg_names),
-            debug: arg_matches.is_present(DEBUG_FLAG),
+        if arg_matches.is_present(SHOW_SCRIPT_FLAG) {
+            Action::ShowScript
+        } else if let Some((name, subcmd_matches)) = arg_matches.subcommand() {
+            let arg_names = name_to_args.remove(name).unwrap();
+
+            Action::FnCall {
+                name: name.to_owned(),
+                args: extract_args(subcmd_matches, arg_names),
+            }
+        } else {
+            app.print_help().unwrap();
+            process::exit(2);
         }
     }
 }
 
-const DEBUG_FLAG: &str = "debug";
+const SHOW_SCRIPT_FLAG: &str = "show-script";
 
-pub struct FnCall {
-    pub name: String,
-    pub args: Vec<String>,
-    pub debug: bool,
+pub enum Action {
+    FnCall { name: String, args: Vec<String> },
+    ShowScript,
 }
 
 fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>) {

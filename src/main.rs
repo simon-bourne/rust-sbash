@@ -7,7 +7,7 @@ use std::{
     process::{self, Command, Stdio},
 };
 
-use sbash::Script;
+use sbash::{Action, Script};
 
 fn run() -> Result<(), Box<dyn Error>> {
     let mut args = env::args();
@@ -17,22 +17,24 @@ fn run() -> Result<(), Box<dyn Error>> {
         .ok_or(format!("Usage: {} [SCRIPT_FILE]", exe_name))?;
     let input = fs::read_to_string(&script_file)?;
     let items = Script::parse(&input)?;
-    let fn_call = items.parse_args(&exe_name, env::args().skip(1));
+    let action = items.parse_args(&exe_name, env::args().skip(1));
+
+    let (fn_name, args) = match action {
+        Action::FnCall { name, args } => (name, args),
+        Action::ShowScript => {
+            println!("{}", items);
+            return Ok(());
+        }
+    };
+
     let script = format!(
         "{}\n\nset -euo pipefail\nBASH_ARGV0=\"{}\"\n\n{} \"$@\"",
-        items, script_file, fn_call.name
+        items, script_file, fn_name
     );
-
-    // TODO: Make `parse_args` return an enum with either debug or fn_call, and `println!("{}", items);
-    // TODO: Rename `debug` to `show-bash`
-    if fn_call.debug {
-        println!("{}", script);
-        return Ok(());
-    }
 
     // TODO: Can we make a temporary file for the script so bash can read stdin?
     let mut child = Command::new("bash")
-        .args(iter::once("-s".to_owned()).chain(fn_call.args))
+        .args(iter::once("-s".to_owned()).chain(args))
         .stdin(Stdio::piped())
         .spawn()?;
 
