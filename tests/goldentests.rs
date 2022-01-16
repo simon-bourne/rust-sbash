@@ -4,7 +4,7 @@ use goldenfile::Mint;
 use sbash::Script;
 
 macro_rules! tests{
-    ($($name:ident),* $(,)?) => { 
+    ($($name:ident),* $(,)?) => {
         $(
             #[test]
             fn $name() {
@@ -14,19 +14,19 @@ macro_rules! tests{
     }
 }
 
-tests!(
-    public,
-    inline
-);
+tests!(public, inline, hyphen_in_arg);
 
 fn test(script: &str) {
     let mut mint = Mint::new("tests/goldenfiles");
     let mut output = mint
-        .new_goldenfile(Path::new(script).with_extension("sh"))
+        .new_goldenfile(Path::new(script).with_extension("txt"))
         .unwrap();
     let input =
         fs::read_to_string(Path::new("tests/scripts").join(script).with_extension("sb")).unwrap();
-    let items = Script::parse(&input).unwrap();
 
-    write!(output, "{}", items).unwrap();
+    match Script::parse(&input) {
+        Ok(items) => write!(output, "{}", items),
+        Err(e) => write!(output, "{}", e.text()),
+    }
+    .unwrap();
 }

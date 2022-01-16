@@ -182,6 +182,12 @@ impl<'a> Display for Script<'a> {
 #[error("Parse error:\n{0}")]
 pub struct ParseError(String);
 
+impl ParseError {
+    pub fn text(&self) -> &str {
+        &self.0
+    }
+}
+
 fn count_newlines(s: &str) -> usize {
     bytecount::count(s.as_bytes(), b'\n')
 }
