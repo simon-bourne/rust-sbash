@@ -31,12 +31,19 @@ impl<'a> Script<'a> {
     }
 
     pub fn parse_args(&self, exe_name: &str, args: impl IntoIterator<Item = String>) -> Action {
-        let app = App::new(exe_name).arg(
-            Arg::new(SHOW_SCRIPT_FLAG)
-                .long(SHOW_SCRIPT_FLAG)
-                .takes_value(false)
-                .help("Show the generated bash script (without code to call the function)"),
-        );
+        let app = App::new(exe_name)
+            .arg(
+                Arg::new(SHOW_SCRIPT_FLAG)
+                    .long(SHOW_SCRIPT_FLAG)
+                    .takes_value(false)
+                    .help("Show the generated bash script (without subcommand code)"),
+            )
+            .arg(
+                Arg::new(DEBUG_FLAG)
+                    .long(DEBUG_FLAG)
+                    .takes_value(false)
+                    .help("Show the generated bash script for a subcommand"),
+            );
 
         let mut app = app;
         let mut name_to_args = HashMap::new();
@@ -68,6 +75,7 @@ impl<'a> Script<'a> {
             Action::FnCall {
                 name: name.to_owned(),
                 args: extract_args(subcmd_matches, arg_names),
+                debug: arg_matches.is_present(DEBUG_FLAG),
             }
         } else {
             app.print_help().unwrap();
@@ -77,9 +85,14 @@ impl<'a> Script<'a> {
 }
 
 const SHOW_SCRIPT_FLAG: &str = "show-script";
+const DEBUG_FLAG: &str = "debug";
 
 pub enum Action {
-    FnCall { name: String, args: Vec<String> },
+    FnCall {
+        name: String,
+        args: Vec<String>,
+        debug: bool,
+    },
     ShowScript,
 }
 

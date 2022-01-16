@@ -19,8 +19,8 @@ fn run() -> Result<(), Box<dyn Error>> {
     let items = Script::parse(&input)?;
     let action = items.parse_args(&exe_name, env::args().skip(1));
 
-    let (fn_name, args) = match action {
-        Action::FnCall { name, args } => (name, args),
+    let (fn_name, args, debug) = match action {
+        Action::FnCall { name, args, debug } => (name, args, debug),
         Action::ShowScript => {
             println!("{}", items);
             return Ok(());
@@ -31,6 +31,11 @@ fn run() -> Result<(), Box<dyn Error>> {
         "{}\n\nset -euo pipefail\nBASH_ARGV0=\"{}\"\n\n{} \"$@\"",
         items, script_file, fn_name
     );
+
+    if debug {
+        println!("{}", script);
+        return Ok(());
+    }
 
     // TODO: Can we make a temporary file for the script so bash can read stdin?
     let mut child = Command::new("bash")
