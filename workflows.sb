@@ -1,0 +1,33 @@
+#!/usr/bin/env sbash
+
+#> Full clippy check with warnings denied
+pub fn check() {
+    cargo clippy --all-targets -- -D warnings -D clippy::all
+}
+
+#> Run rustfmt on everything
+pub fn fmt(
+    $@ #< Arguments are forwarded to `rustfmt`
+) {
+    cargo +nightly fmt --all -- "$@"
+}
+
+#> Quick CI tests
+#>
+#> This won't run tests in release mode
+pub fn quick-ci() {
+    fmt --check
+    check
+    cargo test
+    cargo build --all-targets
+    cargo doc
+    cargo +nightly udeps --all-targets
+}
+
+#> Full CI tests
+#>
+#> This will do an incremental build, so `cargo clean` first for a full test
+pub fn ci() {
+    quick-ci
+    cargo test --benches --tests --release
+}
