@@ -104,8 +104,12 @@ fn arg(input: Span) -> ParseResult<ItemArg> {
 }
 
 fn last_arg(input: Span) -> ParseResult<ItemArg> {
-    let (s, (pre_description, name, post_description)) =
-        tuple((doc_comment('>'), text(identifier), doc_comment('<')))(input)?;
+    let (s, (pre_description, name, _comma, post_description)) = tuple((
+        doc_comment('>'),
+        text(identifier),
+        opt(tag(",")),
+        doc_comment('<'),
+    ))(input)?;
 
     item_arg(s, &pre_description, &post_description, name)
 }
