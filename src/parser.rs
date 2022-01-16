@@ -223,6 +223,7 @@ impl Description {
                     .collect::<Vec<_>>()
             })
             .flatten()
+            .filter(|para| !para.is_empty())
             .collect();
 
         let long = paragraphs.join("\n\n");
