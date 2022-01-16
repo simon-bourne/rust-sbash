@@ -19,7 +19,6 @@ use nom_locate::LocatedSpan;
 use crate::{FnSignature, Item, ItemArg, ParseError};
 
 pub fn parse(input: &str) -> Result<(Description, Vec<Item>), ParseError> {
-    // TODO: Add more contexts to parser
     let input_span = Span::new(input);
 
     let (_, script) = match script(input_span).finish() {
@@ -32,7 +31,7 @@ pub fn parse(input: &str) -> Result<(Description, Vec<Item>), ParseError> {
 
 fn script(input: Span) -> ParseResult<(Description, Vec<Item>)> {
     let (input, (script_docs, (items, _eof))) =
-        pair(doc_comment('^'), many_till(ws(item), eof))(input)?;
+        context("script", pair(doc_comment('^'), many_till(ws(item), eof)))(input)?;
     Ok((input, (Description::new([&script_docs]), items)))
 }
 
@@ -91,23 +90,29 @@ fn fn_signature(input: Span) -> ParseResult<FnSignature> {
 }
 
 fn arg(input: Span) -> ParseResult<ItemArg> {
-    let (s, (pre_description, name, _comma, post_description)) = tuple((
-        doc_comment('>'),
-        text(identifier),
-        char(','),
-        doc_comment('<'),
-    ))(input)?;
+    let (s, (pre_description, name, _comma, post_description)) = context(
+        "argument",
+        tuple((
+            doc_comment('>'),
+            text(identifier),
+            char(','),
+            doc_comment('<'),
+        )),
+    )(input)?;
 
     item_arg(s, &pre_description, &post_description, name)
 }
 
 fn last_arg(input: Span) -> ParseResult<ItemArg> {
-    let (s, (pre_description, name, _comma, post_description)) = tuple((
-        doc_comment('>'),
-        text(identifier),
-        opt(tag(",")),
-        doc_comment('<'),
-    ))(input)?;
+    let (s, (pre_description, name, _comma, post_description)) = context(
+        "last argument",
+        tuple((
+            doc_comment('>'),
+            text(identifier),
+            opt(tag(",")),
+            doc_comment('<'),
+        )),
+    )(input)?;
 
     item_arg(s, &pre_description, &post_description, name)
 }
@@ -136,10 +141,13 @@ fn body(input: Span) -> ParseResult<Span> {
 
     let prefix = *prefix.fragment();
 
-    recognize(many0(pair(
-        alt((recognize(tuple((tag(prefix), not_line_ending))), space0)),
-        line_ending,
-    )))(input)
+    context(
+        "body",
+        recognize(many0(pair(
+            alt((recognize(tuple((tag(prefix), not_line_ending))), space0)),
+            line_ending,
+        ))),
+    )(input)
 }
 
 fn identifier(input: Span) -> ParseResult<Span> {
