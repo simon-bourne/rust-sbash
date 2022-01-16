@@ -2,7 +2,19 @@
 
 [![MIT/Apache-2 licensed](https://img.shields.io/crates/l/silkenweb)](./LICENSE-APACHE)
 
-SBash is a Bash based scripting language for workflows. It features better support for functions, and an automatically generated command line interface. The following example serves as a tutorial and illustrates all SBash features:
+SBash is a Bash based scripting language for workflows. It features better support for functions, and an automatically generated command line interface. 
+
+## Installing
+
+```bash
+git clone https://github.com/simon-bourne/sbash
+cd sbash
+cargo install --path .
+```
+
+## Tutorial
+
+The following serves as a tutorial and illustrates all SBash features:
 
 ```bash
 #!/usr/bin/env sbash
