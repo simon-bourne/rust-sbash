@@ -2,7 +2,7 @@
 
 [![MIT/Apache-2 licensed](https://img.shields.io/crates/l/silkenweb)](./LICENSE-APACHE)
 
-SBash is a Bash based scripting language for workflows. It features better support for functions, and an automatically generated command line interface. 
+SBash is a Bash based scripting language for workflows. It features better support for functions, and an automatically generated command line interface.
 
 ## Installing
 
@@ -100,4 +100,4 @@ pub inline fn public-functions-can-be-inline-too() {
 }
 ```
 
-See `workflows.sb` for another example.
+See [workflows.sb](workflows.sb) for another example.
