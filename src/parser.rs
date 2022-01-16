@@ -19,8 +19,6 @@ use nom_locate::LocatedSpan;
 use crate::{FnSignature, Item, ItemArg, ParseError};
 
 pub fn parse(input: &str) -> Result<(Description, Vec<Item>), ParseError> {
-    // TODO: Parse doc comments (#^) for script and add them to about for main
-    // command or join them to `main` function (in the case of a single pub main)
     // TODO: Add more contexts to parser
     let input_span = Span::new(input);
 
