@@ -1,0 +1,3 @@
+inline fn inline-fn() {
+    echo inline-fn
+}
