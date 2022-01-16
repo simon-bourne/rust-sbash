@@ -3,7 +3,8 @@ use nom::{
     bytes::complete::tag,
     character::{
         complete::{
-            alpha1, alphanumeric1, line_ending, multispace1, none_of, not_line_ending, space0,
+            alpha1, alphanumeric1, line_ending, multispace1, none_of, not_line_ending, one_of,
+            space0,
         },
         streaming::char,
     },
@@ -75,7 +76,7 @@ fn fn_signature(input: Span) -> ParseResult<FnSignature> {
     let (input, (name, (mut args, last_arg))) = context(
         "function signature",
         pair(
-            text(identifier),
+            text(identifier("_-")),
             ws(delimited(tag("("), arg_list, tag(")"))),
         ),
     )(input)?;
@@ -106,7 +107,7 @@ fn arg(input: Span) -> ParseResult<ItemArg> {
         "argument",
         tuple((
             doc_comment('>'),
-            text(identifier),
+            text(identifier("_")),
             char(','),
             doc_comment('<'),
         )),
@@ -120,7 +121,7 @@ fn last_arg(input: Span) -> ParseResult<ItemArg> {
         "last argument",
         tuple((
             doc_comment('>'),
-            text(alt((identifier, tag(FORWARDED_ARGS_NAME)))),
+            text(alt((identifier("_"), tag(FORWARDED_ARGS_NAME)))),
             opt(char(',')),
             doc_comment('<'),
         )),
@@ -162,14 +163,14 @@ fn body(input: Span) -> ParseResult<Span> {
     )(input)
 }
 
-fn identifier(input: Span) -> ParseResult<Span> {
+fn identifier<'a>(seperator_chars: &'a str) -> impl FnMut(Span<'a>) -> ParseResult<'a, Span<'a>> {
     context(
         "identifier",
         recognize(pair(
             alt((alpha1, tag("_"))),
-            many0(alt((alphanumeric1, tag("_"), tag("-")))),
+            many0(alt((alphanumeric1, recognize(one_of(seperator_chars))))),
         )),
-    )(input)
+    )
 }
 
 fn text<'a>(
