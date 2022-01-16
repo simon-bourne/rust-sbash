@@ -1,3 +1,10 @@
+# SBash
+
+[![MIT/Apache-2 licensed](https://img.shields.io/crates/l/silkenweb)](./LICENSE-APACHE)
+
+SBash is a Bash based scripting language for workflows. It features better support for functions, and an automatically generated command line interface. The following example serves as a tutorial and illustrates all SBash features:
+
+```bash
 #!/usr/bin/env sbash
 
 #^ This is the short description for the whole script
@@ -79,3 +86,6 @@ inline fn an-inline-function() {
 pub inline fn public-functions-can-be-inline-too() {
     echo Hello from public-functions-can-be-inline-too
 }
+```
+
+See `workflows.sb` for another example.
