@@ -99,8 +99,8 @@ pub enum Action {
     ShowScript,
 }
 
-fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>) {
-    let mut arg_names = Vec::new();
+fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, ItemArgNames<'a>) {
+    let mut names = Vec::new();
 
     for item_arg in &item.fn_signature.args {
         let description = &item_arg.description;
@@ -110,24 +110,61 @@ fn item_arg_spec<'a>(mut app: App<'a>, item: &'a Item) -> (App<'a>, Vec<&'a str>
             .help(description.short())
             .long_help(description.long());
         app = app.arg(arg);
-        arg_names.push(item_arg.name);
+        names.push(item_arg.name);
     }
 
-    (app, arg_names)
+    let forward_extra_args = &item.fn_signature.forward_extra_args;
+
+    if let Some(description) = forward_extra_args {
+        let arg = Arg::new(FORWARDED_ARGS_NAME)
+            .required(false)
+            .multiple_values(true)
+            .help(description.short())
+            .long_help(description.long());
+        app = app.arg(arg);
+    }
+
+    (
+        app,
+        ItemArgNames {
+            names,
+            forward_extra: forward_extra_args.is_some(),
+        },
+    )
 }
 
-fn extract_args(arg_matches: &ArgMatches, item_args: Vec<&str>) -> Vec<String> {
-    item_args
-        .into_iter()
-        .map(|item_arg| {
-            let mut values = arg_matches.values_of(item_arg).unwrap();
-            let value = values.next().unwrap();
-            assert!(values.next().is_none());
+struct ItemArgNames<'a> {
+    names: Vec<&'a str>,
+    forward_extra: bool,
+}
 
-            value.to_owned()
+fn extract_args(arg_matches: &ArgMatches, item_args: ItemArgNames) -> Vec<String> {
+    let positional_args = item_args.names.into_iter().map(|item_arg| {
+        let mut values = arg_matches.values_of(item_arg).unwrap();
+        let value = values.next().unwrap();
+        assert!(values.next().is_none());
+
+        value
+    });
+
+    let forwarded_args = item_args
+        .forward_extra
+        .then(|| {
+            arg_matches
+                .values_of(FORWARDED_ARGS_NAME)
+                .into_iter()
+                .flatten()
         })
+        .into_iter()
+        .flatten();
+
+    positional_args
+        .chain(forwarded_args)
+        .map(|arg| arg.to_owned())
         .collect()
 }
+
+const FORWARDED_ARGS_NAME: &str = "$@";
 
 impl<'a> Display for Script<'a> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -195,6 +232,7 @@ impl<'a> Item<'a> {
 struct FnSignature<'a> {
     name: &'a str,
     args: Vec<ItemArg<'a>>,
+    forward_extra_args: Option<Description>,
 }
 
 impl<'a> FnSignature<'a> {

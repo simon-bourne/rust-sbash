@@ -16,7 +16,7 @@ use nom::{
 use nom_greedyerror::{convert_error, GreedyError};
 use nom_locate::LocatedSpan;
 
-use crate::{FnSignature, Item, ItemArg, ParseError};
+use crate::{FnSignature, Item, ItemArg, ParseError, FORWARDED_ARGS_NAME};
 
 pub fn parse(input: &str) -> Result<(Description, Vec<Item>), ParseError> {
     let input_span = Span::new(input);
@@ -72,7 +72,7 @@ fn item(input: Span) -> ParseResult<Item> {
 
 fn fn_signature(input: Span) -> ParseResult<FnSignature> {
     let arg_list = pair(many0(ws(arg)), opt(ws(last_arg)));
-    let (input, (name, (args, last_arg))) = context(
+    let (input, (name, (mut args, last_arg))) = context(
         "function signature",
         pair(
             text(identifier),
@@ -80,11 +80,23 @@ fn fn_signature(input: Span) -> ParseResult<FnSignature> {
         ),
     )(input)?;
 
+    let forward_extra_args = if let Some(last_arg) = last_arg {
+        if last_arg.name == FORWARDED_ARGS_NAME {
+            Some(last_arg.description)
+        } else {
+            args.push(last_arg);
+            None
+        }
+    } else {
+        None
+    };
+
     Ok((
         input,
         FnSignature {
             name,
-            args: args.into_iter().chain(last_arg.into_iter()).collect(),
+            args,
+            forward_extra_args,
         },
     ))
 }
@@ -108,8 +120,8 @@ fn last_arg(input: Span) -> ParseResult<ItemArg> {
         "last argument",
         tuple((
             doc_comment('>'),
-            text(identifier),
-            opt(tag(",")),
+            text(alt((identifier, tag(FORWARDED_ARGS_NAME)))),
+            opt(char(',')),
             doc_comment('<'),
         )),
     )(input)?;
@@ -118,13 +130,13 @@ fn last_arg(input: Span) -> ParseResult<ItemArg> {
 }
 
 fn item_arg<'a>(
-    s: Span<'a>,
+    input: Span<'a>,
     pre_description: &[Span<'a>],
     post_description: &[Span<'a>],
     name: &'a str,
 ) -> ParseResult<'a, ItemArg<'a>> {
     Ok((
-        s,
+        input,
         ItemArg {
             description: Description::new([pre_description, post_description]),
             name,
