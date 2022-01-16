@@ -1,6 +1,14 @@
+#!/usr/bin/env sbash
+
+#^ A description of the entire script
+#^
+#^ A more detailed description of the eniter script
+
 #> A description of test1
 #> that goes onto multiple lines
 #> and goes on and on and on and on and on and on and on and on and on
+#> 
+#> and onto a new paragraph
 # test
 pub inline fn test1() 
 #< and a post doc comment to finish
