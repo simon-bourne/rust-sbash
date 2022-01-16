@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 nom="7.1.0"
-itertools = "0.10.3"
 nom_locate = "4.0.0"
 bytecount = "0.6.2"
 nom-greedyerror = "0.4.0"
