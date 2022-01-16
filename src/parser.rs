@@ -38,24 +38,26 @@ fn script(input: Span) -> ParseResult<Vec<Item>> {
 }
 
 fn item(input: Span) -> ParseResult<Item> {
-    let (input, (pre_description, (is_pub, is_inline), _, (fn_signature, post_description, body))) =
-        context(
-            "function",
-            tuple((
-                doc_comment('>'),
-                pair(opt(ws(tag("pub"))), opt(ws(tag("inline")))),
-                ws(tag("fn")),
-                tuple((
-                    fn_signature,
-                    doc_comment('<'),
-                    ws(delimited(
-                        tuple((tag("{"), space0, opt(line_comment), many1(line_ending))),
-                        body,
-                        tag("}"),
-                    )),
-                )),
-            )),
-        )(input)?;
+    let public = opt(ws(tag("pub")));
+    let inline = opt(ws(tag("inline")));
+    let body_block = ws(delimited(
+        tuple((tag("{"), space0, opt(line_comment), many1(line_ending))),
+        body,
+        tag("}"),
+    ));
+
+    let (
+        input,
+        (pre_description, (is_pub, is_inline), _fn, (fn_signature, post_description, body)),
+    ) = context(
+        "function",
+        tuple((
+            doc_comment('>'),
+            pair(public, inline),
+            ws(tag("fn")),
+            tuple((fn_signature, doc_comment('<'), body_block)),
+        )),
+    )(input)?;
 
     Ok((
         input,
@@ -71,15 +73,12 @@ fn item(input: Span) -> ParseResult<Item> {
 }
 
 fn fn_signature(input: Span) -> ParseResult<FnSignature> {
+    let arg_list = pair(many0(ws(arg)), opt(ws(last_arg)));
     let (input, (name, (args, last_arg))) = context(
         "function signature",
         pair(
             text(identifier),
-            ws(delimited(
-                tag("("),
-                pair(many0(ws(arg)), opt(ws(last_arg))),
-                tag(")"),
-            )),
+            ws(delimited(tag("("), arg_list, tag(")"))),
         ),
     )(input)?;
 
