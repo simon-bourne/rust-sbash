@@ -16,6 +16,7 @@ pub fn workflow1() {
 pub fn named-workflow(
     name #< The name of the workflow
 ) {
+    # SBash sets `$name` for us from the arguments
     workflow "$name"
 }
 

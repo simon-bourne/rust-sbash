@@ -14,7 +14,7 @@ cargo install --path .
 
 ## A Simple Example
 
-This is a really simple script with 2 workflows: `workflow1` and `named-workflow`. `named-workflow` illustrates SBash function parameters.
+This is a really simple script with 2 public functions: `workflow1` and `named-workflow`. We'll use it to look at the command line interface that SBash generates for us, and see how to run functions.
 
 ```bash
 #!/usr/bin/env sbash
@@ -35,6 +35,7 @@ pub fn workflow1() {
 pub fn named-workflow(
     name #< The name of the workflow
 ) {
+    # SBash sets `$name` for us from the arguments
     workflow "$name"
 }
 
@@ -44,15 +45,7 @@ fn workflow(name) {
 }
 ```
 
-Running `named-workflow`:
-
-<pre class="terminal">
-<span class="shell">&gt; </span><span class="cmd">examples/simple.sb</span> <span class="arg">named-workflow</span> <span class="arg">my-name</span>
-Workflow my-name
-<span class="shell">&gt; </span><span class="caret"> </span>
-</pre>
-
-This is the help text for the script:
+SBash will generate help text for the command line interface from the doc comments. Here is the main help text for the script:
 
 <pre class="terminal">
 <span class="shell">&gt; </span><span class="cmd">examples/simple.sb</span>
@@ -74,7 +67,7 @@ A really simple example
 <span class="shell">&gt; </span><span class="caret"> </span>
 </pre>
 
-This is the help text for `named-workflow`:
+Each function has more detailed documentation, generated from the comments. Here is the help text for the `named-workflow` function:
 
 <pre class="terminal">
 <span class="shell">&gt; </span><span class="cmd">examples/simple.sb</span> <span class="arg">named-workflow</span> <span class="flag">--help</span>
@@ -96,6 +89,13 @@ It doesn&#39;t do much either!
 <span class="shell">&gt; </span><span class="caret"> </span>
 </pre>
 
+To run a workflow we run the script with the function name first, followed by it's arguments. For example, to run `named-workflow`:
+
+<pre class="terminal">
+<span class="shell">&gt; </span><span class="cmd">examples/simple.sb</span> <span class="arg">named-workflow</span> <span class="arg">my-name</span>
+Workflow my-name
+<span class="shell">&gt; </span><span class="caret"> </span>
+</pre>
 
 ## Tutorial
 
