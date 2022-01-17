@@ -17,7 +17,7 @@ fn run() -> Result<(), Box<dyn Error>> {
         .ok_or(format!("Usage: {} [SCRIPT_FILE]", exe_name))?;
     let input = fs::read_to_string(&script_file)?;
     let items = Script::parse(&input)?;
-    let action = items.parse_args(&exe_name, env::args().skip(1));
+    let action = items.parse_args(&script_file, env::args().skip(1));
 
     let (fn_name, args, debug) = match action {
         Action::FnCall { name, args, debug } => (name, args, debug),

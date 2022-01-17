@@ -1,10 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
     fmt::{self, Display},
-    process,
+    io, process,
 };
 
-use clap::{App, Arg, ArgMatches};
+use clap::{App, Arg, ArgEnum, ArgMatches};
+use clap_complete::{generate, Shell};
+use indoc::indoc;
 use parser::Description;
 use thiserror::Error;
 
@@ -30,8 +32,16 @@ impl<'a> Script<'a> {
         Ok(Self { description, items })
     }
 
-    pub fn parse_args(&self, exe_name: &str, args: impl IntoIterator<Item = String>) -> Action {
-        let app = App::new(exe_name)
+    pub fn parse_args(&self, script_file: &str, args: impl IntoIterator<Item = String>) -> Action {
+        let shell_comp_help = format!(
+            indoc! {r#"
+                Generate shell completions. To generate bash completions:
+
+                source <("{}" --shell-completions bash)
+            "#},
+            script_file
+        );
+        let app = App::new(script_file)
             .about(self.description.short())
             .long_about(self.description.long())
             .arg(
@@ -44,7 +54,20 @@ impl<'a> Script<'a> {
                 Arg::new(DEBUG_FLAG)
                     .long(DEBUG_FLAG)
                     .takes_value(false)
+                    .exclusive(true)
                     .help("Show the generated bash script for a subcommand"),
+            )
+            .arg(
+                Arg::new(SHELL_COMPLETIONS)
+                    .long(SHELL_COMPLETIONS)
+                    .help("Generate shell completions")
+                    .long_help(shell_comp_help.as_str())
+                    .possible_values(
+                        Shell::value_variants()
+                            .iter()
+                            .filter_map(ArgEnum::to_possible_value),
+                    )
+                    .exclusive(true),
             );
 
         let mut app = app;
@@ -70,7 +93,10 @@ impl<'a> Script<'a> {
             .try_get_matches_from_mut(args)
             .unwrap_or_else(|e| e.exit());
 
-        if arg_matches.is_present(SHOW_SCRIPT_FLAG) {
+        if let Ok(generator) = arg_matches.value_of_t::<Shell>(SHELL_COMPLETIONS) {
+            generate(generator, &mut app, script_file, &mut io::stdout());
+            process::exit(0);
+        } else if arg_matches.is_present(SHOW_SCRIPT_FLAG) {
             Action::ShowScript
         } else if let Some((name, subcmd_matches)) = arg_matches.subcommand() {
             let arg_names = name_to_args.remove(name).unwrap();
@@ -89,6 +115,7 @@ impl<'a> Script<'a> {
 
 const SHOW_SCRIPT_FLAG: &str = "show-script";
 const DEBUG_FLAG: &str = "debug";
+const SHELL_COMPLETIONS: &str = "shell-completions";
 
 pub enum Action {
     FnCall {
