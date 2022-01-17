@@ -12,6 +12,91 @@ cd sbash
 cargo install --path .
 ```
 
+## A Simple Example
+
+This is a really simple script with 2 workflows: `workflow1` and `named-workflow`. `named-workflow` illustrates SBash function parameters.
+
+```bash
+#!/usr/bin/env sbash
+
+#^ A really simple example
+
+#> Workflow 1
+#>
+#> It doesn't do much!
+pub fn workflow1() {
+    # The function body is a plain old bash script
+    workflow_n 1
+}
+
+#> Workflow 2
+#>
+#> It doesn't do much either!
+pub fn named-workflow(
+    name #< The name of the workflow
+) {
+    workflow "$name"
+}
+
+#> This is a private function, and won't appear in the command line interface
+fn workflow(name) {
+    echo "Workflow $name"
+}
+```
+
+Running `named-workflow`:
+
+<pre class="terminal">
+<span class="shell">&gt; </span><span class="cmd">examples/simple.sb</span> <span class="arg">named-workflow</span> <span class="arg">my-name</span>
+Workflow my-name
+<span class="shell">&gt; </span><span class="caret"> </span>
+</pre>
+
+This is the help text for the script:
+
+<pre class="terminal">
+<span class="shell">&gt; </span><span class="cmd">examples/simple.sb</span>
+<span style='color:#0a0'>sbash</span> 
+A really simple example
+
+<span style='color:#a50'>USAGE:</span>
+    simple.sb [OPTIONS] [SUBCOMMAND]
+
+<span style='color:#a50'>OPTIONS:
+</span>        <span style='color:#0a0'>--debug</span>          Show the generated bash script for a subcommand
+    <span style='color:#0a0'>-h</span>, <span style='color:#0a0'>--help</span>           Print help information
+        <span style='color:#0a0'>--show-script</span>    Show the generated bash script (without subcommand code)
+
+<span style='color:#a50'>SUBCOMMANDS</span><span style='color:#a50'>:
+</span>    <span style='color:#0a0'>help</span>              Print this message or the help of the given subcommand(s)
+    <span style='color:#0a0'>named-workflow</span>    Workflow 2
+    <span style='color:#0a0'>workflow1</span>         Workflow 1
+<span class="shell">&gt; </span><span class="caret"> </span>
+</pre>
+
+This is the help text for `named-workflow`:
+
+<pre class="terminal">
+<span class="shell">&gt; </span><span class="cmd">examples/simple.sb</span> <span class="arg">named-workflow</span> <span class="flag">--help</span>
+<span style='color:#0a0'>simple.sb-named-workflow</span> 
+Workflow 2
+
+It doesn&#39;t do much either!
+
+<span style='color:#a50'>USAGE:</span>
+    simple.sb named-workflow &lt;name&gt;
+
+<span style='color:#a50'>ARGS:
+</span>    <span style='color:#0a0'>&lt;name&gt;</span>
+            The name of the workflow
+
+<span style='color:#a50'>OPTIONS:
+</span>    <span style='color:#0a0'>-h</span>, <span style='color:#0a0'>--help</span>
+            Print help information
+<span class="shell">&gt; </span><span class="caret"> </span>
+</pre>
+
+
 ## Tutorial
 
 The following serves as a tutorial and illustrates all SBash features:

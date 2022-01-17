@@ -1,0 +1,25 @@
+#!/usr/bin/env sbash
+
+#^ A really simple example
+
+#> Workflow 1
+#>
+#> It doesn't do much!
+pub fn workflow1() {
+    # The function body is a plain old bash script
+    workflow_n 1
+}
+
+#> Workflow 2
+#>
+#> It doesn't do much either!
+pub fn named-workflow(
+    name #< The name of the workflow
+) {
+    workflow "$name"
+}
+
+#> This is a private function, and won't appear in the command line interface
+fn workflow(name) {
+    echo "Workflow $name"
+}
