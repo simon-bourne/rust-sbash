@@ -43,22 +43,31 @@ pub fn named-workflow(
 fn workflow(name) {
     echo "Workflow $name"
 }
+
 ```
 
 SBash will generate help text for the command line interface from the doc comments. Here is the main help text for the script:
 
 <pre class="terminal">
 <span class="shell">&gt; </span><span class="cmd">examples/simple.sb</span>
-<span style='color:#0a0'>sbash</span> 
+<span style='color:#0a0'>examples/simple.sb</span> 
 A really simple example
 
 <span style='color:#a50'>USAGE:</span>
     simple.sb [OPTIONS] [SUBCOMMAND]
 
 <span style='color:#a50'>OPTIONS:
-</span>        <span style='color:#0a0'>--debug</span>          Show the generated bash script for a subcommand
-    <span style='color:#0a0'>-h</span>, <span style='color:#0a0'>--help</span>           Print help information
-        <span style='color:#0a0'>--show-script</span>    Show the generated bash script (without subcommand code)
+</span>        <span style='color:#0a0'>--debug</span>
+            Show the generated bash script for a subcommand
+
+    <span style='color:#0a0'>-h</span>, <span style='color:#0a0'>--help</span>
+            Print help information
+
+        <span style='color:#0a0'>--shell-completions</span> <span style='color:#0a0'>&lt;shell-completions&gt;</span>
+            Generate shell completions [possible values: bash, elvish, fish, powershell, zsh]
+
+        <span style='color:#0a0'>--show-script</span>
+            Show the generated bash script (without subcommand code)
 
 <span style='color:#a50'>SUBCOMMANDS</span><span style='color:#a50'>:
 </span>    <span style='color:#0a0'>help</span>              Print this message or the help of the given subcommand(s)
@@ -66,6 +75,7 @@ A really simple example
     <span style='color:#0a0'>workflow1</span>         Workflow 1
 <span class="shell">&gt; </span><span class="caret"> </span>
 </pre>
+
 
 Each function has more detailed documentation, generated from the comments. Here is the help text for the `named-workflow` function:
 
@@ -89,6 +99,7 @@ It doesn&#39;t do much either!
 <span class="shell">&gt; </span><span class="caret"> </span>
 </pre>
 
+
 To run a workflow we run the script with the function name first, followed by it's arguments. For example, to run `named-workflow`:
 
 <pre class="terminal">
@@ -96,6 +107,7 @@ To run a workflow we run the script with the function name first, followed by it
 Workflow my-name
 <span class="shell">&gt; </span><span class="caret"> </span>
 </pre>
+
 
 ## Tutorial
 
@@ -183,6 +195,7 @@ inline fn an-inline-function() {
 pub inline fn public-functions-can-be-inline-too() {
     echo Hello from public-functions-can-be-inline-too
 }
+
 ```
 
 See [workflows.sb](workflows.sb) for another example.

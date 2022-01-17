@@ -31,3 +31,7 @@ pub fn ci() {
     quick-ci
     cargo test --benches --tests --release
 }
+
+pub fn generate-readme() {
+    readme-template < README.tmpl.md > README.md
+}
