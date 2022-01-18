@@ -8,7 +8,7 @@ macro_rules! tests{
         $(
             #[test]
             fn $name() {
-                test(stringify!($name));
+                test(stringify!($name), "tests/scripts", ".");
             }
         )*
     }
@@ -16,13 +16,27 @@ macro_rules! tests{
 
 tests!(public, inline, hyphen_in_arg);
 
-fn test(script: &str) {
-    let mut mint = Mint::new("tests/goldenfiles");
+fn example(name: &str) {
+    test(name, "examples", "examples");
+}
+
+#[test]
+fn simple() {
+    example("simple");
+}
+
+#[test]
+fn all_features() {
+    example("all-features");
+}
+
+fn test(script: &str, source_dir: &str, target_dir: &str) {
+    let mut mint = Mint::new(Path::new("tests/goldenfiles").join(target_dir));
     let mut output = mint
         .new_goldenfile(Path::new(script).with_extension("txt"))
         .unwrap();
     let input =
-        fs::read_to_string(Path::new("tests/scripts").join(script).with_extension("sb")).unwrap();
+        fs::read_to_string(Path::new(source_dir).join(script).with_extension("sb")).unwrap();
 
     match Script::parse(&input) {
         Ok(items) => write!(output, "{}", items),

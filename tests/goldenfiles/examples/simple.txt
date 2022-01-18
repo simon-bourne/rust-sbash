@@ -1,0 +1,26 @@
+
+
+
+
+
+
+
+workflow1 () { ( 
+    # The function body is a plain old bash script
+    workflow_n 1
+) };
+
+
+
+
+
+
+named-workflow () { ( name="$1"; shift; 
+    # SBash sets `$name` for us from the arguments
+    workflow "$name"
+) };
+
+
+workflow () { ( name="$1"; shift; 
+    echo "Workflow $name"
+) };

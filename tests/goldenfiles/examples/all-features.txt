@@ -1,0 +1,81 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+a-public-function () { ( 
+    # Functions are compiled to normal bash functions, so we can call them 
+    # from other functions:
+    echo "Hello from a-public-function"
+    echo "Calling a-private-function"
+    a-private-function
+) };
+
+
+
+
+
+
+
+
+
+
+
+
+a-function-with-arguments () { ( first_arg="$1"; shift; second_arg="$1"; shift; 
+    echo Hello from a-function-with-arguments
+    # Arguments are passed to the function as environment variables
+    echo First arg: "$first_arg"
+    echo Second arg: "$second_arg"
+) };
+
+
+
+
+forwarding-arguments () { ( first_arg="$1"; shift; second_arg="$1"; shift; 
+    echo First arg: "$first_arg"
+    echo Second arg: "$second_arg"
+    echo Remaining arguments:
+
+    for arg in "$@"; do
+        echo "$arg"
+    done
+) };
+
+
+
+
+a-private-function () { ( 
+    # The body of a function is just a bash script
+    echo "Hello from a-private-function"
+) };
+
+
+
+
+an-inline-function () { 
+    my-variable="This variable will be set in the calling function"
+    echo Hello from an-inline-function
+};
+
+public-functions-can-be-inline-too () { 
+    echo Hello from public-functions-can-be-inline-too
+};
