@@ -1,3 +1,2 @@
 pub fn test-fn() {
-    echo public-fn
 }

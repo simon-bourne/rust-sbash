@@ -1,2 +1,2 @@
-pub fn function(hyphenated-arg) {
+pub fn test-fn(hyphenated-arg) {
 }

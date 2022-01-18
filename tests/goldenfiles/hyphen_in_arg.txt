@@ -1,20 +1,20 @@
 0: at line 0, in Tag:
-pub fn function(hyphenated-arg) {
-                          ^
+pub fn test-fn(hyphenated-arg) {
+                         ^
 
 1: at line 0, in function signature:
-pub fn function(hyphenated-arg) {
+pub fn test-fn(hyphenated-arg) {
        ^
 
 2: at line 0, in function:
-pub fn function(hyphenated-arg) {
+pub fn test-fn(hyphenated-arg) {
 ^
 
 3: at line 0, in ManyTill:
-pub fn function(hyphenated-arg) {
+pub fn test-fn(hyphenated-arg) {
 ^
 
 4: at line 0, in script:
-pub fn function(hyphenated-arg) {
+pub fn test-fn(hyphenated-arg) {
 ^
 

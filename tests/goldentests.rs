@@ -14,7 +14,17 @@ macro_rules! tests{
     }
 }
 
-tests!(public, inline, hyphen_in_arg);
+tests!(
+    empty_body,
+    single_arg,
+    multi_arg,
+    empty_forward_args,
+    multi_forward_args,
+    public,
+    inline,
+    hyphen_in_arg,
+    minimal_lines,
+);
 
 fn example(name: &str) {
     test(name, "examples", "examples");

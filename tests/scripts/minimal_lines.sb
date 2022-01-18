@@ -1,0 +1,4 @@
+pub fn test-fn0() {
+} pub fn test-fn1() {
+} pub fn test-fn2() {
+}
