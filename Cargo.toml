@@ -1,7 +1,15 @@
 [package]
 name = "sbash"
-version = "0.1.0"
+version = "0.0.0"
+authors = ["Simon Bourne <simonbourne@gmail.com>"]
 edition = "2021"
+description="Scripting for rust project workflows"
+homepage="https://github.com/simon-bourne/rust-sbash"
+repository="https://github.com/simon-bourne/rust-sbash"
+license = "MIT OR Apache-2.0"
+
+categories = ["development-tools::build-utils"]
+keywords = ["bash", "shell", "workflow"]
 
 [dependencies]
 nom="7.1.0"
