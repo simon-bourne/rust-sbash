@@ -183,9 +183,9 @@ type Span<'a> = LocatedSpan<&'a str>;
 
 type ParseResult<'a, T> = IResult<Span<'a>, T, GreedyError<Span<'a>, ErrorKind>>;
 
-fn ws<'a, F: 'a, O>(inner: F) -> impl FnMut(Span<'a>) -> ParseResult<'a, O>
+fn ws<'a, F, O>(inner: F) -> impl FnMut(Span<'a>) -> ParseResult<'a, O>
 where
-    F: FnMut(Span<'a>) -> ParseResult<'a, O>,
+    F: FnMut(Span<'a>) -> ParseResult<'a, O> + 'a,
 {
     delimited(ws_or_comments, inner, ws_or_comments)
 }
@@ -227,7 +227,7 @@ impl Description {
     ) -> Self {
         let paragraphs: Vec<String> = description
             .into_iter()
-            .map(|lines| {
+            .flat_map(|lines| {
                 let lines: Vec<&str> = lines.into_iter().map(|s| s.fragment().trim()).collect();
 
                 lines
@@ -235,7 +235,6 @@ impl Description {
                     .map(|paragraph| paragraph.join(" "))
                     .collect::<Vec<_>>()
             })
-            .flatten()
             .filter(|para| !para.is_empty())
             .collect();
 
